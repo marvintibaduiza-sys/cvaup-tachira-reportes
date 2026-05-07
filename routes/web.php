@@ -1,0 +1,138 @@
+<?php
+
+use App\Http\Controllers\Api\UbicacionLookupController;
+use App\Http\Controllers\BackupController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ExportarController;
+use App\Http\Controllers\FotoController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReporteController;
+use App\Http\Controllers\TecnicoController;
+use App\Http\Controllers\UbicacionController;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+    return Inertia::render('Welcome', [
+        'canLogin' => Route::has('login'),
+    ]);
+})->name('home');
+
+Route::middleware(['auth', 'verified'])->group(function () {
+
+    // Dashboard
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+    // Export PDF del dashboard — recibe los 3 charts como data:image/png;base64 desde el cliente
+    // Rate limit 10/min: DomPDF + img base64 = operación pesada en memoria.
+    Route::post('/dashboard/exportar/pdf', [DashboardController::class, 'exportarPdf'])
+        ->middleware('throttle:10,1')
+        ->name('dashboard.exportar.pdf');
+
+    // Fotos privadas — sirven el contenido del disco fotos_privadas con auth (CRITICAL #2)
+    // Patrón regex en {filename} es defensa en profundidad además del check en el controller.
+    Route::get('/fotos/reportes/{reporte}/{filename}', [FotoController::class, 'reporte'])
+        ->where('filename', '[A-Za-z0-9_-]+\.webp')
+        ->name('fotos.reporte');
+    Route::get('/fotos/tecnicos/{tecnico}/{filename}', [FotoController::class, 'tecnico'])
+        ->where('filename', '[A-Za-z0-9_-]+\.webp')
+        ->name('fotos.tecnico');
+
+    // Técnicos (Fase 8)
+    Route::get('/tecnicos', [TecnicoController::class, 'index'])->name('tecnicos.index');
+    Route::get('/tecnicos/crear', [TecnicoController::class, 'create'])->name('tecnicos.create');
+    Route::post('/tecnicos', [TecnicoController::class, 'store'])->name('tecnicos.store');
+    Route::get('/tecnicos/{tecnico}', [TecnicoController::class, 'show'])->name('tecnicos.show');
+    Route::get('/tecnicos/{tecnico}/editar', [TecnicoController::class, 'edit'])->name('tecnicos.edit');
+    Route::match(['put', 'patch'], '/tecnicos/{tecnico}', [TecnicoController::class, 'update'])->name('tecnicos.update');
+    Route::delete('/tecnicos/{tecnico}', [TecnicoController::class, 'destroy'])->name('tecnicos.destroy');
+    Route::patch('/tecnicos/{tecnico}/toggle', [TecnicoController::class, 'toggleEstado'])->name('tecnicos.toggle');
+
+    // Reportes (Fase 10)
+    Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
+    Route::get('/reportes/crear', [ReporteController::class, 'create'])->name('reportes.create');
+    Route::post('/reportes', [ReporteController::class, 'store'])->name('reportes.store');
+    Route::get('/reportes/{reporte}', [ReporteController::class, 'show'])->name('reportes.show');
+    Route::get('/reportes/{reporte}/editar', [ReporteController::class, 'edit'])->name('reportes.edit');
+    Route::match(['put', 'patch'], '/reportes/{reporte}', [ReporteController::class, 'update'])->name('reportes.update');
+    Route::delete('/reportes/{reporte}', [ReporteController::class, 'destroy'])->name('reportes.destroy');
+    // Fase 11: Exportar reporte individual a PDF
+    // Rate limit 10/min: DomPDF con cintillo + fotos = pesado.
+    Route::get('/reportes/{reporte}/pdf', [ReporteController::class, 'pdf'])
+        ->middleware('throttle:10,1')
+        ->name('reportes.pdf');
+
+    // API JSON para selects en cascada (consumido por el form de reportes)
+    Route::prefix('api')->name('api.')->group(function () {
+        Route::get('/parroquias', [UbicacionLookupController::class, 'parroquias'])->name('parroquias');
+        Route::get('/comunas', [UbicacionLookupController::class, 'comunas'])->name('comunas');
+        Route::get('/consejos', [UbicacionLookupController::class, 'consejos'])->name('consejos');
+    });
+
+    // Exportar (Fase 12)
+    // Forms (GET) son ligeros — sin throttle adicional. Downloads (POST) son pesados → throttle 10/min.
+    Route::get('/exportar/pdf', [ExportarController::class, 'pdfForm'])->name('exportar.pdf.form');
+    Route::post('/exportar/pdf', [ExportarController::class, 'pdfDownload'])
+        ->middleware('throttle:10,1')
+        ->name('exportar.pdf.download');
+    Route::get('/exportar/excel', [ExportarController::class, 'excelForm'])->name('exportar.excel.form');
+    Route::post('/exportar/excel', [ExportarController::class, 'excelDownload'])
+        ->middleware('throttle:10,1')
+        ->name('exportar.excel.download');
+    Route::get('/exportar/preview', [ExportarController::class, 'preview'])->name('exportar.preview');
+
+    // Backup del sistema (Fase 13)
+    // Backup = mysqldump + zip + cifrado AES-256 = pesado pero no abusivo en uso normal.
+    // Throttle 10/hora — suficiente para uso institucional (en cron solo se hace 1/día).
+    Route::get('/backups', [BackupController::class, 'index'])->name('backup.index');
+    Route::get('/backups/generar', [BackupController::class, 'generarForm'])->name('backup.generar.form');
+    Route::post('/backups/generar', [BackupController::class, 'generar'])
+        ->middleware('throttle:10,60')
+        ->name('backup.generar');
+    Route::get('/backups/{filename}/descargar', [BackupController::class, 'descargar'])
+        ->where('filename', '[A-Za-z0-9_\-\.]+\.zip')
+        ->name('backup.descargar');
+    Route::delete('/backups/{filename}', [BackupController::class, 'eliminar'])
+        ->where('filename', '[A-Za-z0-9_\-\.]+\.zip')
+        ->name('backup.eliminar');
+
+    // Ubicaciones (Fase 9) — árbol jerárquico + CRUD por nivel + import Excel
+    Route::get('/ubicaciones', [UbicacionController::class, 'index'])->name('ubicaciones.index');
+    Route::get('/ubicaciones/children', [UbicacionController::class, 'children'])->name('ubicaciones.children');
+    Route::get('/ubicaciones/buscar', [UbicacionController::class, 'buscar'])->name('ubicaciones.buscar');
+    Route::get('/ubicaciones/flat-list', [UbicacionController::class, 'flatList'])->name('ubicaciones.flat-list');
+    // Solo Excel: el dataset de ubicaciones (>2k filas) excede lo que DomPDF maneja de forma estable.
+    // PDF queda reservado para reportes individuales (1 reporte = 1 documento oficial).
+    // Rate limit 10/min: PhpSpreadsheet con 2k filas + cintillo es pesado.
+    Route::match(['get', 'post'], '/ubicaciones/exportar/excel', [UbicacionController::class, 'exportarExcel'])
+        ->middleware('throttle:10,1')
+        ->name('ubicaciones.exportar.excel');
+
+    Route::post('/ubicaciones/{tipo}', [UbicacionController::class, 'store'])
+        ->where('tipo', 'municipio|parroquia|comuna|consejo')
+        ->name('ubicaciones.store');
+    Route::put('/ubicaciones/{tipo}/{id}', [UbicacionController::class, 'update'])
+        ->where(['tipo' => 'municipio|parroquia|comuna|consejo', 'id' => '[0-9]+'])
+        ->name('ubicaciones.update');
+    Route::delete('/ubicaciones/{tipo}/{id}', [UbicacionController::class, 'destroy'])
+        ->where(['tipo' => 'municipio|parroquia|comuna|consejo', 'id' => '[0-9]+'])
+        ->name('ubicaciones.destroy');
+
+    Route::get('/ubicaciones/importar', [UbicacionController::class, 'importarForm'])->name('ubicaciones.importar.form');
+    // Import = parseo XLSX completo + 2 pasadas (preview + confirm). Throttle 5/min.
+    Route::post('/ubicaciones/importar/preview', [UbicacionController::class, 'importarPreview'])
+        ->middleware('throttle:5,1')
+        ->name('ubicaciones.importar.preview');
+    Route::post('/ubicaciones/importar/confirmar', [UbicacionController::class, 'importarConfirmar'])
+        ->middleware('throttle:5,1')
+        ->name('ubicaciones.importar.confirmar');
+    Route::get('/ubicaciones/plantilla', [UbicacionController::class, 'plantillaDescargar'])->name('ubicaciones.plantilla');
+
+    // Perfil (Breeze)
+    Route::get('/perfil', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/perfil', [ProfileController::class, 'update'])->name('profile.update');
+});
+
+require __DIR__.'/auth.php';

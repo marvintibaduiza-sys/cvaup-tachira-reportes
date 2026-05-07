@@ -1,0 +1,92 @@
+# ─── Dependencias (se reinstalan con composer/npm) ────────────────
+/node_modules
+/vendor
+
+# ─── Build artifacts (se regeneran con npm run build) ─────────────
+/public/build
+/public/hot
+/public/storage
+
+# ─── Variables de entorno (CONTIENEN SECRETS) ─────────────────────
+.env
+.env.backup
+.env.production
+.env.local
+.env.*.local
+
+# ─── Caché y storage privado (CONTIENE DATOS DE USUARIOS) ─────────
+/storage/*.key
+/storage/pail
+/storage/app/private/*
+!/storage/app/private/.gitkeep
+/storage/app/fotos-privadas/*
+!/storage/app/fotos-privadas/.gitkeep
+/storage/app/public/*
+!/storage/app/public/.gitkeep
+/storage/app/import-temp/*
+!/storage/app/import-temp/.gitkeep
+/storage/app/backup-temp/*
+!/storage/app/backup-temp/.gitkeep
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/testing/*
+!/storage/framework/testing/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore
+
+# ─── Bootstrap cache (regenerable) ────────────────────────────────
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+
+# ─── Tests temporales y archivos de prueba ────────────────────────
+/.phpunit.cache
+/.phpunit.result.cache
+/coverage
+
+# ─── Configuración de IDE / Editor ────────────────────────────────
+/.idea
+/.fleet
+/.nova
+/.vscode
+/.zed
+/.phpactor.json
+/.claude
+/.cursor
+/.aider*
+*.swp
+*.swo
+
+# ─── OS específicos ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Logs ─────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-error.log
+yarn-debug.log
+pnpm-debug.log
+
+# ─── Auth tokens (composer) ───────────────────────────────────────
+/auth.json
+
+# ─── Homestead (Vagrant) ──────────────────────────────────────────
+Homestead.json
+Homestead.yaml
+
+# ─── Archivos de prueba en docs (NO subir XLSX/PDF de prueba) ─────
+/docs/UBICACIONES_TEST*.xlsx
+/docs/UBICACIONES_TEST*.pdf
+/docs/CVAUP_TACHIRA.xlsx
+/docs/CSV_TEST.csv
+/docs/PDF_TEST*.pdf
+/docs/PDF_LISTA*.pdf
+/docs/XLSX_TEST.xlsx
+/docs/XLSX_CON_CINTILLO.xlsx
+
+# ─── Archivos legados del design package (peso considerable) ──────
+/_design_package

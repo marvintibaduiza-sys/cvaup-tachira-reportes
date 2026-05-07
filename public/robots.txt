@@ -1,0 +1,4 @@
+# Sistema interno institucional CVAUP Táchira.
+# NO indexar nada — este sistema NO es público.
+User-agent: *
+Disallow: /
