@@ -22,8 +22,14 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
-        <!-- <env name="DB_CONNECTION" value="sqlite"/> -->
-        <!-- <env name="DB_DATABASE" value=":memory:"/> -->
+        <!--
+            CRÍTICO — aislar la BD de tests de la BD de desarrollo.
+            Sin esto, RefreshDatabase haría migrate:fresh sobre la BD productiva
+            y wipearía datos reales. SQLite-in-memory es 10x más rápido y
+            cada test arranca con esquema limpio sin tocar MySQL.
+        -->
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
