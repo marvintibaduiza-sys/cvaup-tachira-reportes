@@ -134,10 +134,15 @@ php artisan key:generate
 #    - ADMIN_EMAIL, ADMIN_INITIAL_PASSWORD
 #    - BACKUP_ARCHIVE_PASSWORD
 
-# 5. Crear BD y migrar
+# 5. Crear BD, migrar y cargar lo MÍNIMO indispensable (admin + ubicaciones)
 php artisan migrate
-php artisan db:seed --class=UbicacionesSeeder   # Carga 27 mun + 54 parr + 147 com + 2207 CCs desde docs/CVAUP_TACHIRA.xlsx
-php artisan db:seed --class=AdminUserSeeder     # Crea el admin con ADMIN_EMAIL + ADMIN_INITIAL_PASSWORD del .env
+php artisan db:seed     # Carga: 1) usuario admin desde .env  2) 29 mun + 59 parr + 147 com + 2207 CCs desde docs/CVAUP_TACHIRA.xlsx
+                        # NO crea técnicos ni reportes — esos los registra el admin desde la UI.
+
+# (Opcional, SOLO desarrollo local) Cargar técnicos y reportes ficticios
+# para probar listados, charts y exports con datos de muestra:
+# php artisan db:seed --class=TecnicosSeeder
+# php artisan db:seed --class=ReportesSeeder
 
 # 6. Compilar assets y arrancar Vite
 npm run build
