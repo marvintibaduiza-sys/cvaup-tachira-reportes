@@ -136,8 +136,8 @@ php artisan key:generate
 
 # 5. Crear BD y migrar
 php artisan migrate
-php artisan db:seed --class=UbicacionesSeeder
-php artisan db:seed --class=AdminUserSeeder
+php artisan db:seed --class=UbicacionesSeeder   # Carga 27 mun + 54 parr + 147 com + 2207 CCs desde docs/CVAUP_TACHIRA.xlsx
+php artisan db:seed --class=AdminUserSeeder     # Crea el admin con ADMIN_EMAIL + ADMIN_INITIAL_PASSWORD del .env
 
 # 6. Compilar assets y arrancar Vite
 npm run build

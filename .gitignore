@@ -81,12 +81,13 @@ Homestead.yaml
 # ─── Archivos de prueba en docs (NO subir XLSX/PDF de prueba) ─────
 /docs/UBICACIONES_TEST*.xlsx
 /docs/UBICACIONES_TEST*.pdf
-/docs/CVAUP_TACHIRA.xlsx
 /docs/CSV_TEST.csv
 /docs/PDF_TEST*.pdf
 /docs/PDF_LISTA*.pdf
 /docs/XLSX_TEST.xlsx
 /docs/XLSX_CON_CINTILLO.xlsx
+# NOTA: docs/CVAUP_TACHIRA.xlsx SÍ se versiona (datos territoriales reales
+# de Táchira que el UbicacionesSeeder usa al desplegar).
 
 # ─── Archivos legados del design package (peso considerable) ──────
 /_design_package
