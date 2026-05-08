@@ -92,18 +92,24 @@ class DemoPoblar extends Command
      */
     private function crearTecnicosDemo(int $cantidadDeseada): int
     {
-        $existentes = Tecnico::where('nombre_apellido', 'LIKE', self::MARCADOR . '%')->count();
+        // Tras BLOQUE 4 la columna nombre_apellido NO existe — identificamos los
+        // técnicos demo por la cédula con prefijo 9999 (ver self::CEDULA_PREFIX).
+        // Es más robusto que buscar por nombre porque la cédula no se puede
+        // editar accidentalmente desde la UI (es UNIQUE).
+        $existentes = Tecnico::where('cedula', 'LIKE', self::CEDULA_PREFIX . '%')->count();
         $faltan = max(0, $cantidadDeseada - $existentes);
 
         if ($faltan === 0) {
             return $existentes;
         }
 
+        // Pares (nombre, apellido) ficticios. El prefijo [DEMO] se añade al nombre
+        // para que sea visible a simple vista en el listado de técnicos.
         $nombresFicticios = [
-            'Carlos Ramírez', 'María González', 'José Pérez', 'Ana Rodríguez',
-            'Luis Martínez', 'Carmen Sánchez', 'Pedro López', 'Laura García',
-            'Miguel Hernández', 'Patricia Fernández', 'Andrés Castillo', 'Yelitza Mora',
-            'Eduardo Silva', 'Daniela Torres', 'Roberto Mendoza',
+            ['Carlos', 'Ramírez'], ['María', 'González'], ['José', 'Pérez'], ['Ana', 'Rodríguez'],
+            ['Luis', 'Martínez'], ['Carmen', 'Sánchez'], ['Pedro', 'López'], ['Laura', 'García'],
+            ['Miguel', 'Hernández'], ['Patricia', 'Fernández'], ['Andrés', 'Castillo'], ['Yelitza', 'Mora'],
+            ['Eduardo', 'Silva'], ['Daniela', 'Torres'], ['Roberto', 'Mendoza'],
         ];
 
         // Próxima cédula = max actual + 1, o el prefijo base si no hay
@@ -117,14 +123,17 @@ class DemoPoblar extends Command
         $bar->start();
 
         for ($i = 0; $i < $faltan; $i++) {
-            $nombreReal = $nombresFicticios[$i % \count($nombresFicticios)];
+            [$nombre, $apellido] = $nombresFicticios[$i % \count($nombresFicticios)];
             $cedula = self::CEDULA_PREFIX . str_pad((string) ($proximoNumero + $i), 6, '0', STR_PAD_LEFT);
 
             Tecnico::create([
-                'nombre_apellido' => self::MARCADOR . ' ' . $nombreReal,
+                'nombre' => self::MARCADOR . ' ' . $nombre,
+                'apellido' => $apellido,
+                'tipo_documento' => 'V',
                 'cedula' => $cedula,
                 'telefono' => '0414-' . random_int(1000000, 9999999),
-                'especialidad' => 'Agronomía urbana (demo)',
+                // BLOQUE 4.5: array de especialidades (puede tener varias)
+                'especialidades' => ['Agronomía urbana'],
                 'estado' => 'activo',
             ]);
 
@@ -143,8 +152,9 @@ class DemoPoblar extends Command
      */
     private function crearReportesDemo(int $cantidad): int
     {
-        // Solo técnicos demo — NO contaminamos las estadísticas con técnicos reales
-        $tecnicos = Tecnico::where('nombre_apellido', 'LIKE', self::MARCADOR . '%')->get();
+        // Solo técnicos demo — NO contaminamos las estadísticas con técnicos reales.
+        // Identificamos por cédula 9999% (más confiable que buscar por nombre tras BLOQUE 4).
+        $tecnicos = Tecnico::where('cedula', 'LIKE', self::CEDULA_PREFIX . '%')->get();
 
         if ($tecnicos->isEmpty()) {
             $this->error('No hay técnicos demo disponibles. Aborta.');

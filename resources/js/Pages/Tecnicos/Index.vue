@@ -126,6 +126,7 @@ const toggleEstado = (tecnico) => {
                             <th class="px-4 py-3 font-semibold">Contacto</th>
                             <th class="px-4 py-3 font-semibold">Especialidad</th>
                             <th class="px-4 py-3 font-semibold text-center">Reportes</th>
+                            <th class="px-4 py-3 font-semibold text-center">Último reporte</th>
                             <th class="px-4 py-3 font-semibold text-center">Estado</th>
                             <th class="px-4 py-3 font-semibold text-right">Acciones</th>
                         </tr>
@@ -153,7 +154,17 @@ const toggleEstado = (tecnico) => {
                                         >
                                             {{ t.nombre_apellido }}
                                         </Link>
-                                        <div class="text-xs text-slate-500">{{ t.cedula }}</div>
+                                        <!-- BLOQUE 4: tipo de documento como pill + cédula sin puntos -->
+                                        <div class="flex items-center gap-1.5 mt-0.5">
+                                            <span
+                                                v-if="t.tipo_documento"
+                                                class="inline-flex items-center justify-center min-w-[22px] h-4 px-1 rounded bg-cvaup-primary/10 text-cvaup-primary text-[10px] font-bold border border-cvaup-primary/20"
+                                                :title="`Tipo de documento: ${t.tipo_documento}`"
+                                            >
+                                                {{ t.tipo_documento }}
+                                            </span>
+                                            <span class="text-xs text-slate-500 tabular-nums">{{ t.cedula }}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </td>
@@ -162,11 +173,37 @@ const toggleEstado = (tecnico) => {
                                 <div v-else class="text-slate-400 text-xs">—</div>
                             </td>
                             <td class="px-4 py-3 text-slate-600">
-                                <div v-if="t.especialidad">{{ t.especialidad }}</div>
+                                <!-- BLOQUE 4.5: muestra primera especialidad + "+N" si hay más; tooltip con la lista completa -->
+                                <div
+                                    v-if="t.especialidades && t.especialidades.length > 0"
+                                    class="flex items-center gap-1"
+                                    :title="t.especialidades.join(', ')"
+                                >
+                                    <span class="bg-cvaup-primary/10 text-cvaup-primary border border-cvaup-primary/20 rounded-full px-2 py-0.5 text-[11px] font-medium">
+                                        {{ t.especialidades[0] }}
+                                    </span>
+                                    <span
+                                        v-if="t.especialidades.length > 1"
+                                        class="text-[10px] text-slate-500 font-medium"
+                                    >
+                                        +{{ t.especialidades.length - 1 }}
+                                    </span>
+                                </div>
                                 <div v-else class="text-slate-400 text-xs">—</div>
                             </td>
                             <td class="px-4 py-3 text-center">
                                 <span class="inline-block tabular-nums font-semibold text-slate-700">{{ t.total_reportes }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <!-- Último reporte: formato DD/MM/YYYY (institucional VE). Vacío si nunca ha reportado. -->
+                                <span
+                                    v-if="t.ultimo_reporte"
+                                    class="text-xs text-slate-600 tabular-nums"
+                                    :title="`Fecha del último reporte: ${t.ultimo_reporte}`"
+                                >
+                                    {{ t.ultimo_reporte }}
+                                </span>
+                                <span v-else class="text-slate-400 text-xs">—</span>
                             </td>
                             <td class="px-4 py-3 text-center">
                                 <Badge :type="t.estado === 'activo' ? 'activo' : 'inactivo'" size="sm" />

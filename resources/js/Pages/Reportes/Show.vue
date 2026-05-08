@@ -104,13 +104,24 @@ const downloadPdf = () => {
                     </div>
                     <div>
                         <div class="font-medium text-slate-800 group-hover:text-cvaup-primary transition-colors">{{ reporte.tecnico.nombre_apellido }}</div>
-                        <div class="text-xs text-slate-500">{{ reporte.tecnico.cedula }}</div>
+                        <!-- BLOQUE 4: tipo de documento como pill + cédula sin puntos -->
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <span
+                                v-if="reporte.tecnico.tipo_documento"
+                                class="inline-flex items-center justify-center min-w-[22px] h-4 px-1 rounded bg-cvaup-primary/10 text-cvaup-primary text-[10px] font-bold border border-cvaup-primary/20"
+                                :title="`Tipo: ${reporte.tecnico.tipo_documento}`"
+                            >
+                                {{ reporte.tecnico.tipo_documento }}
+                            </span>
+                            <span class="text-xs text-slate-500 tabular-nums">{{ reporte.tecnico.cedula }}</span>
+                        </div>
                     </div>
                 </Link>
             </Card>
 
             <!-- Ubicación -->
             <Card title="Ubicación">
+                <!-- Jerarquía principal -->
                 <div class="flex items-center gap-2 text-sm flex-wrap">
                     <span class="bg-slate-100 px-2.5 py-1 rounded text-slate-700">{{ reporte.ubicacion.estado }}</span>
                     <Icon name="chevron-right" :size="14" class="text-slate-400" />
@@ -126,6 +137,49 @@ const downloadPdf = () => {
                 </div>
                 <div v-if="reporte.metricas.lugar" class="mt-3 text-sm text-slate-600">
                     <span class="text-slate-500">Lugar específico:</span> {{ reporte.metricas.lugar }}
+                </div>
+
+                <!-- BLOQUE 5: Otros territorios atendidos en la misma jornada -->
+                <div
+                    v-if="(reporte.ubicacion.comunas_adicionales?.length || 0) > 0"
+                    class="mt-4 pt-3 border-t border-slate-100"
+                >
+                    <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">
+                        Otras comunas atendidas
+                        ({{ reporte.ubicacion.comunas_adicionales.length }})
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <span
+                            v-for="c in reporte.ubicacion.comunas_adicionales"
+                            :key="`ca-${c.id}`"
+                            class="bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-1 rounded text-xs"
+                            :title="`${c.parroquia ?? ''}, ${c.municipio ?? ''}`"
+                        >
+                            {{ c.nombre }}
+                            <span class="text-slate-400 ml-1">— {{ c.municipio }}</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div
+                    v-if="(reporte.ubicacion.consejos_comunales_adicionales?.length || 0) > 0"
+                    class="mt-3"
+                >
+                    <div class="text-xs uppercase tracking-wider text-slate-400 mb-2">
+                        Otros consejos comunales atendidos
+                        ({{ reporte.ubicacion.consejos_comunales_adicionales.length }})
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <span
+                            v-for="cc in reporte.ubicacion.consejos_comunales_adicionales"
+                            :key="`cca-${cc.id}`"
+                            class="bg-cvaup-primary/5 text-cvaup-primary border border-cvaup-primary/20 px-2.5 py-1 rounded text-xs font-medium"
+                            :title="`${cc.comuna ?? ''}, ${cc.parroquia ?? ''}, ${cc.municipio ?? ''}`"
+                        >
+                            {{ cc.nombre }}
+                            <span class="text-slate-400 ml-1">— {{ cc.comuna }}, {{ cc.municipio }}</span>
+                        </span>
+                    </div>
                 </div>
             </Card>
 

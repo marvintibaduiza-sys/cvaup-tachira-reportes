@@ -71,17 +71,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/consejos', [UbicacionLookupController::class, 'consejos'])->name('consejos');
     });
 
-    // Exportar (Fase 12)
-    // Forms (GET) son ligeros — sin throttle adicional. Downloads (POST) son pesados → throttle 10/min.
-    Route::get('/exportar/pdf', [ExportarController::class, 'pdfForm'])->name('exportar.pdf.form');
-    Route::post('/exportar/pdf', [ExportarController::class, 'pdfDownload'])
+    // Generar Reportes (antes "Exportar") — pantalla UNIFICADA con 2 botones (PDF/Excel)
+    // Forms (GET) son ligeros — sin throttle. Downloads (POST) son pesados → throttle 10/min.
+    Route::get('/generar-reportes', [ExportarController::class, 'formUnificado'])->name('generar-reportes.index');
+    Route::post('/generar-reportes/pdf', [ExportarController::class, 'pdfDownload'])
         ->middleware('throttle:10,1')
-        ->name('exportar.pdf.download');
-    Route::get('/exportar/excel', [ExportarController::class, 'excelForm'])->name('exportar.excel.form');
-    Route::post('/exportar/excel', [ExportarController::class, 'excelDownload'])
+        ->name('generar-reportes.pdf');
+    Route::post('/generar-reportes/excel', [ExportarController::class, 'excelDownload'])
         ->middleware('throttle:10,1')
-        ->name('exportar.excel.download');
-    Route::get('/exportar/preview', [ExportarController::class, 'preview'])->name('exportar.preview');
+        ->name('generar-reportes.excel');
+    Route::get('/generar-reportes/preview', [ExportarController::class, 'preview'])->name('generar-reportes.preview');
 
     // Backup del sistema (Fase 13)
     // Backup = mysqldump + zip + cifrado AES-256 = pesado pero no abusivo en uso normal.

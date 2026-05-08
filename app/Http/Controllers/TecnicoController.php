@@ -36,7 +36,10 @@ class TecnicoController extends Controller
             // Escape de wildcards LIKE (post-auditoría MEDIUM #7).
             $q = SqlLike::escape(trim($filters['q']));
             $query->where(function ($w) use ($q) {
-                $w->where('nombre_apellido', 'like', "%{$q}%")
+                // Buscar en nombre, apellido o concatenación, además de cédula
+                $w->where('nombre', 'like', "%{$q}%")
+                  ->orWhere('apellido', 'like', "%{$q}%")
+                  ->orWhereRaw("CONCAT(nombre, ' ', apellido) LIKE ?", ["%{$q}%"])
                   ->orWhere('cedula', 'like', "%{$q}%");
             });
         }
@@ -46,18 +49,37 @@ class TecnicoController extends Controller
             $query->where('estado', $estado);
         }
 
-        $tecnicos = $query->orderBy('nombre_apellido')
+        // Optimización: cargar la fecha del último reporte de cada técnico via subquery
+        // para evitar N+1 en la lista. Más eficiente que ->latest('fecha')->first() por cada uno.
+        $query->addSelect([
+            'ultimo_reporte_fecha' => \App\Models\Reporte::select('fecha')
+                ->whereColumn('tecnico_id', 'tecnicos.id')
+                ->latest('fecha')
+                ->limit(1),
+        ]);
+
+        $tecnicos = $query->orderBy('nombre')->orderBy('apellido')
             ->paginate(15)
             ->withQueryString()
             ->through(fn (Tecnico $t) => [
                 'id' => $t->id,
-                'nombre_apellido' => $t->nombre_apellido,
+                'nombre' => $t->nombre,
+                'apellido' => $t->apellido,
+                'nombre_apellido' => $t->nombre_apellido, // accessor "{nombre} {apellido}"
+                'tipo_documento' => $t->tipo_documento,
                 'cedula' => $t->cedula,
+                'documento_completo' => $t->documento_completo, // accessor "V-12345678"
                 'telefono' => $t->telefono,
-                'especialidad' => $t->especialidad,
+                // BLOQUE 4.5: array de especialidades + accessor concatenado para tooltip/listados
+                'especialidades' => $t->especialidades ?? [],
+                'especialidad' => $t->especialidad, // accessor "Agronomía urbana, Hidroponía"
                 'estado' => $t->estado,
-                'foto_url' => $t->foto_perfil_url, // accessor autenticado (CRITICAL #2)
+                'foto_url' => $t->foto_perfil_url,
                 'total_reportes' => $t->reportes_count,
+                // Formato DD/MM/YYYY institucional (ej: 06/05/2026)
+                'ultimo_reporte' => $t->ultimo_reporte_fecha
+                    ? \Carbon\Carbon::parse($t->ultimo_reporte_fecha)->format('d/m/Y')
+                    : null,
             ]);
 
         return Inertia::render('Tecnicos/Index', [
@@ -80,6 +102,8 @@ class TecnicoController extends Controller
     {
         return Inertia::render('Tecnicos/Create', [
             'municipios' => $this->municipiosOptions(),
+            'tipos_documento' => Tecnico::TIPOS_DOCUMENTO,
+            'especialidades' => Tecnico::ESPECIALIDADES,
         ]);
     }
 
@@ -133,12 +157,18 @@ class TecnicoController extends Controller
         return Inertia::render('Tecnicos/Show', [
             'tecnico' => [
                 'id' => $tecnico->id,
-                'nombre_apellido' => $tecnico->nombre_apellido,
+                'nombre' => $tecnico->nombre,
+                'apellido' => $tecnico->apellido,
+                'nombre_apellido' => $tecnico->nombre_apellido, // accessor concatenado
+                'tipo_documento' => $tecnico->tipo_documento,
                 'cedula' => $tecnico->cedula,
+                'documento_completo' => $tecnico->documento_completo, // "V-12345678"
                 'telefono' => $tecnico->telefono,
+                // BLOQUE 4.5: array para mostrar como chips + accessor concatenado backward-compat
+                'especialidades' => $tecnico->especialidades ?? [],
                 'especialidad' => $tecnico->especialidad,
                 'estado' => $tecnico->estado,
-                'foto_url' => $tecnico->foto_perfil_url, // accessor autenticado (CRITICAL #2)
+                'foto_url' => $tecnico->foto_perfil_url,
                 'municipios_asignados' => $tecnico->municipios->map(fn ($m) => ['id' => $m->id, 'nombre' => $m->nombre]),
                 'created_at' => $tecnico->created_at?->format('d/m/Y'),
             ],
@@ -147,7 +177,15 @@ class TecnicoController extends Controller
                 'promedio_personas' => $promedioPersonas ? (int) round($promedioPersonas) : 0,
                 'municipios_trabajados' => $municipiosTrabajados,
                 'tasa_cumplimiento_mes' => $tecnico->tasaCumplimientoMesActual(),
-                'ultimo_reporte' => $tecnico->reportes()->latest('fecha')->first()?->only(['id', 'fecha', 'titulo_actividad']),
+                'ultimo_reporte' => (function () use ($tecnico) {
+                    $r = $tecnico->reportes()->latest('fecha')->first();
+                    return $r ? [
+                        'id' => $r->id,
+                        // Formato institucional venezolano DD/MM/YYYY (ej: 06/05/2026)
+                        'fecha' => $r->fecha?->format('d/m/Y'),
+                        'titulo_actividad' => $r->titulo_actividad,
+                    ] : null;
+                })(),
             ],
             'reportes_recientes' => $tecnico->reportes->map(fn ($r) => [
                 'id' => $r->id,
@@ -168,15 +206,20 @@ class TecnicoController extends Controller
         return Inertia::render('Tecnicos/Edit', [
             'tecnico' => [
                 'id' => $tecnico->id,
-                'nombre_apellido' => $tecnico->nombre_apellido,
+                'nombre' => $tecnico->nombre,
+                'apellido' => $tecnico->apellido,
+                'tipo_documento' => $tecnico->tipo_documento,
                 'cedula' => $tecnico->cedula,
                 'telefono' => $tecnico->telefono,
-                'especialidad' => $tecnico->especialidad,
+                // BLOQUE 4.5: enviamos array para que el form arme los checkboxes preseleccionados
+                'especialidades' => $tecnico->especialidades ?? [],
                 'estado' => $tecnico->estado,
-                'foto_url' => $tecnico->foto_perfil_url, // accessor autenticado (CRITICAL #2)
+                'foto_url' => $tecnico->foto_perfil_url,
                 'municipio_ids' => $tecnico->municipios->pluck('id'),
             ],
             'municipios' => $this->municipiosOptions(),
+            'tipos_documento' => Tecnico::TIPOS_DOCUMENTO,
+            'especialidades' => Tecnico::ESPECIALIDADES,
         ]);
     }
 

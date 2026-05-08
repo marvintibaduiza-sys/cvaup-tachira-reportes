@@ -237,24 +237,39 @@
         @endif
     </div>
 
-    {{-- Técnico responsable --}}
+    {{-- Técnico responsable — BLOQUE 4 + 4.5: estructura institucional completa --}}
     @if ($reporte->tecnico)
     <div class="section">
         <h2>Técnico responsable</h2>
         <table class="data-grid">
             <tr>
-                <td class="label">Nombre y apellido</td>
-                <td class="value">{{ $reporte->tecnico->nombre_apellido }}</td>
+                <td class="label">Nombre</td>
+                <td class="value">{{ $reporte->tecnico->nombre }}</td>
             </tr>
             <tr>
-                <td class="label">Cédula</td>
-                <td class="value">{{ $reporte->tecnico->cedula }}</td>
+                <td class="label">Apellido</td>
+                <td class="value">{{ $reporte->tecnico->apellido }}</td>
             </tr>
+            <tr>
+                <td class="label">Documento de identidad</td>
+                <td class="value">{{ $reporte->tecnico->documento_completo }}</td>
+            </tr>
+            @php
+                $especialidadesTecnico = is_array($reporte->tecnico->especialidades)
+                    ? $reporte->tecnico->especialidades
+                    : [];
+            @endphp
+            @if (count($especialidadesTecnico) > 0)
+            <tr>
+                <td class="label">Especialidades ({{ count($especialidadesTecnico) }})</td>
+                <td class="value">{{ implode(', ', $especialidadesTecnico) }}</td>
+            </tr>
+            @endif
         </table>
     </div>
     @endif
 
-    {{-- Ubicación --}}
+    {{-- Ubicación principal + adicionales atendidos en la jornada (BLOQUE 5) --}}
     <div class="section">
         <h2>Ubicación</h2>
         <div class="ubicacion">
@@ -266,11 +281,35 @@
             <br>
             <strong>Comuna:</strong> {{ $reporte->comuna?->nombre ?? '—' }}
             &nbsp;›&nbsp;
-            <strong>Consejo Comunal:</strong> {{ $reporte->consejoComunal?->nombre ?? '—' }}
+            <strong>Consejo Comunal sede:</strong> {{ $reporte->consejoComunal?->nombre ?? '—' }}
             @if ($reporte->lugar)
-                <br><strong>Lugar específico:</strong> {{ $reporte->lugar }}
+                <br><strong>Lugar específico de la actividad:</strong> {{ $reporte->lugar }}
             @endif
         </div>
+
+        {{-- BLOQUE 5: comunas adicionales atendidas en la misma jornada --}}
+        @if ($reporte->comunasAdicionales->count() > 0)
+        <div class="ubicacion" style="margin-top: 6px; background: #FAFAFA;">
+            <strong>Otras comunas atendidas ({{ $reporte->comunasAdicionales->count() }}):</strong>
+            <span style="color: #475569;">
+                @foreach ($reporte->comunasAdicionales as $c)
+                    {{ $c->nombre }}<span style="color: #94A3B8;"> — {{ $c->parroquia?->municipio?->nombre ?? '?' }}</span>{{ !$loop->last ? ', ' : '' }}
+                @endforeach
+            </span>
+        </div>
+        @endif
+
+        {{-- BLOQUE 5: consejos comunales adicionales atendidos --}}
+        @if ($reporte->consejosComunalesAdicionales->count() > 0)
+        <div class="ubicacion" style="margin-top: 6px; background: #FAFAFA;">
+            <strong>Otros consejos comunales atendidos ({{ $reporte->consejosComunalesAdicionales->count() }}):</strong>
+            <span style="color: #475569;">
+                @foreach ($reporte->consejosComunalesAdicionales as $cc)
+                    {{ $cc->nombre }}<span style="color: #94A3B8;"> — {{ $cc->comuna?->nombre ?? '?' }}</span>{{ !$loop->last ? ', ' : '' }}
+                @endforeach
+            </span>
+        </div>
+        @endif
     </div>
 
     {{-- Métricas --}}
@@ -288,11 +327,11 @@
                 </td>
                 <td>
                     <div class="num">{{ $reporte->cantidad_comunas_atendidas ?? '—' }}</div>
-                    <div class="lbl">Comunas atendidas</div>
+                    <div class="lbl">Total comunas atendidas</div>
                 </td>
                 <td>
                     <div class="num">{{ $reporte->cantidad_consejos_comunales_atendidos ?? '—' }}</div>
-                    <div class="lbl">Consejos atendidos</div>
+                    <div class="lbl">Total consejos atendidos</div>
                 </td>
             </tr>
         </table>

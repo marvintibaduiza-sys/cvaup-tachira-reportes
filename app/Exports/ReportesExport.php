@@ -48,7 +48,9 @@ class ReportesExport implements
 {
     private const HEADER_ROW = 4;       // fila donde van los headers de columna
     private const FIRST_DATA_ROW = 5;   // primera fila de datos
-    private const LAST_COLUMN = 'AB';   // 28 columnas en total
+    // BLOQUE 6: 32 columnas (A=1..AF=32). Antes eran 28.
+    // Agregadas: Tipo doc, Especialidades, Otras comunas atendidas, Otros CCs atendidos.
+    private const LAST_COLUMN = 'AF';
 
     public function __construct(private readonly Collection $reportes)
     {
@@ -67,44 +69,84 @@ class ReportesExport implements
     {
         // ExcelSanitizer (E::clean) neutraliza CSV Formula Injection en TODOS los campos string.
         // Números, fechas y enteros pasan tal cual (E::clean los detecta y no los toca).
-        return $this->reportes->map(fn ($r) => [
-            $r->id,
-            $r->fecha?->format('Y-m-d'),
-            E::clean($r->estado_reporte),
-            E::clean($r->tecnico?->nombre_apellido),
-            E::clean($r->tecnico?->cedula),
-            E::clean($r->municipio?->nombre),
-            E::clean($r->parroquia?->nombre),
-            E::clean($r->comuna?->nombre),
-            E::clean($r->consejoComunal?->nombre),
-            $r->cantidad_comunas_atendidas,
-            $r->cantidad_consejos_comunales_atendidos,
-            E::clean($r->lugar),
-            $r->cantidad_personas_atendidas,
-            $r->cantidad_personas_a_beneficiar,
-            E::clean($r->titulo_actividad),
-            E::clean($r->nombre_cientifico_rubro),
-            $r->fecha_ejecucion?->format('Y-m-d'),
-            E::clean($r->ponencia_responsable),
-            E::clean($r->material_apoyo),
-            E::clean($r->organizado_por),
-            E::clean($r->aval_de),
-            E::clean($r->certificacion),
-            E::clean($r->participantes_acreditados),
-            E::clean($r->alcance_grupo),
-            E::clean($r->resultado),
-            E::clean($r->resumen_tematico),
-            $r->fotos->count(),
-            $r->created_at?->format('Y-m-d H:i:s'),
-        ]);
+        return $this->reportes->map(function ($r) {
+            // BLOQUE 4.5: especialidades es array → string para celda
+            $especialidades = \is_array($r->tecnico?->especialidades)
+                ? implode(', ', $r->tecnico->especialidades)
+                : '';
+
+            // BLOQUE 5: comunas adicionales formateadas con su municipio para contexto.
+            // Formato: "Comuna A (Mun X), Comuna B (Mun Y)"
+            $otrasComunas = $r->comunasAdicionales
+                ?->map(fn ($c) => sprintf(
+                    '%s (%s)',
+                    $c->nombre,
+                    $c->parroquia?->municipio?->nombre ?? '?'
+                ))
+                ->implode(', ') ?? '';
+
+            // BLOQUE 5: CCs adicionales con su comuna para contexto.
+            $otrosCCs = $r->consejosComunalesAdicionales
+                ?->map(fn ($cc) => sprintf(
+                    '%s (%s)',
+                    $cc->nombre,
+                    $cc->comuna?->nombre ?? '?'
+                ))
+                ->implode(', ') ?? '';
+
+            return [
+                $r->id,
+                $r->fecha?->format('Y-m-d'),
+                E::clean($r->estado_reporte),
+                // ── BLOQUE 4 + 4.5: técnico con datos completos ──
+                E::clean($r->tecnico?->nombre_apellido),
+                E::clean($r->tecnico?->tipo_documento),
+                E::clean($r->tecnico?->cedula),
+                E::clean($especialidades),
+                // ── Ubicación principal ──
+                E::clean($r->municipio?->nombre),
+                E::clean($r->parroquia?->nombre),
+                E::clean($r->comuna?->nombre),
+                E::clean($r->consejoComunal?->nombre),
+                // ── BLOQUE 5: cantidades calculadas + listas adicionales ──
+                $r->cantidad_comunas_atendidas,
+                E::clean($otrasComunas),
+                $r->cantidad_consejos_comunales_atendidos,
+                E::clean($otrosCCs),
+                // ── Resto ──
+                E::clean($r->lugar),
+                $r->cantidad_personas_atendidas,
+                $r->cantidad_personas_a_beneficiar,
+                E::clean($r->titulo_actividad),
+                E::clean($r->nombre_cientifico_rubro),
+                $r->fecha_ejecucion?->format('Y-m-d'),
+                E::clean($r->ponencia_responsable),
+                E::clean($r->material_apoyo),
+                E::clean($r->organizado_por),
+                E::clean($r->aval_de),
+                E::clean($r->certificacion),
+                E::clean($r->participantes_acreditados),
+                E::clean($r->alcance_grupo),
+                E::clean($r->resultado),
+                E::clean($r->resumen_tematico),
+                $r->fotos->count(),
+                $r->created_at?->format('Y-m-d H:i:s'),
+            ];
+        });
     }
 
     public function headings(): array
     {
         return [
-            'ID', 'Fecha', 'Estado del reporte', 'Técnico', 'Cédula',
+            'ID', 'Fecha', 'Estado del reporte',
+            // BLOQUE 4 + 4.5: identidad del técnico expandida
+            'Técnico', 'Tipo doc.', 'Cédula', 'Especialidades',
+            // Ubicación principal (sede del reporte)
             'Municipio', 'Parroquia', 'Comuna', 'Consejo Comunal',
-            'Cantidad comunas atendidas', 'Cantidad consejos atendidos', 'Lugar',
+            // BLOQUE 5: cantidades calculadas + listas concatenadas de adicionales
+            'Total comunas atendidas', 'Otras comunas atendidas',
+            'Total consejos atendidos', 'Otros consejos comunales atendidos',
+            'Lugar',
             'Personas atendidas', 'Personas a beneficiar', 'Título actividad',
             'Nombre científico rubro', 'Fecha ejecución', 'Ponencia / Responsable',
             'Material de apoyo', 'Organizado por', 'Aval de', 'Certificación',

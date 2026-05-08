@@ -6,13 +6,17 @@ import { Head, useForm } from '@inertiajs/vue3';
 
 defineProps({
     municipios: { type: Array, default: () => [] },
+    tipos_documento: { type: Array, default: () => [] }, // BLOQUE 4.5: array simple ["V","E","J","G","P"]
+    especialidades: { type: Array, default: () => [] },
 });
 
 const form = useForm({
-    nombre_apellido: '',
+    nombre: '',
+    apellido: '',
+    tipo_documento: 'V',  // default Venezolano (lo más común)
     cedula: '',
     telefono: '',
-    especialidad: '',
+    especialidades: [],   // BLOQUE 4.5: ahora es array (multi-select)
     estado: 'activo',
     municipio_ids: [],
     foto: null,
@@ -34,6 +38,8 @@ const submit = () => {
                 <Form
                     :form="form"
                     :municipios="municipios"
+                    :tipos-documento="tipos_documento"
+                    :especialidades="especialidades"
                     submit-label="Registrar técnico"
                     @submit="submit"
                 />

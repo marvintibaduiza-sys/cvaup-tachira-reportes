@@ -41,7 +41,9 @@ class ReporteController extends Controller
 
         $query = Reporte::query()
             ->with([
-                'tecnico:id,nombre_apellido,cedula',
+                // BLOQUE 4: nombre_apellido ya no existe como columna; cargamos las
+                // columnas reales y el accessor se encarga de concatenar.
+                'tecnico:id,nombre,apellido,tipo_documento,cedula',
                 'municipio:id,nombre',
                 'parroquia:id,nombre',
                 'consejoComunal:id,nombre',
@@ -98,7 +100,15 @@ class ReporteController extends Controller
                 'hasta' => $filters['hasta'] ?? '',
             ],
             'lookups' => [
-                'tecnicos' => Tecnico::activos()->orderBy('nombre_apellido')->get(['id', 'nombre_apellido']),
+                // BLOQUE 4: ordenamos por las columnas físicas (nombre, apellido) y
+                // el accessor `nombre_apellido` se serializa al pasar por toArray().
+                'tecnicos' => Tecnico::activos()
+                    ->orderBy('nombre')->orderBy('apellido')
+                    ->get(['id', 'nombre', 'apellido', 'tipo_documento', 'cedula'])
+                    ->map(fn ($t) => [
+                        'id' => $t->id,
+                        'nombre_apellido' => $t->nombre_apellido,
+                    ]),
                 'municipios' => Municipio::orderBy('nombre')->get(['id', 'nombre']),
             ],
         ]);
@@ -107,8 +117,20 @@ class ReporteController extends Controller
     public function create(): Response
     {
         return Inertia::render('Reportes/Create', [
-            'tecnicos' => Tecnico::activos()->orderBy('nombre_apellido')->get(['id', 'nombre_apellido', 'cedula']),
+            'tecnicos' => Tecnico::activos()
+                ->orderBy('nombre')->orderBy('apellido')
+                ->get(['id', 'nombre', 'apellido', 'tipo_documento', 'cedula'])
+                ->map(fn ($t) => [
+                    'id' => $t->id,
+                    'nombre_apellido' => $t->nombre_apellido,
+                    'cedula' => $t->cedula,
+                    'documento_completo' => $t->documento_completo,
+                ]),
             'municipios' => Municipio::orderBy('nombre')->get(['id', 'nombre']),
+            // BLOQUE 5: catálogos completos para los multi-selects de adicionales.
+            // Pueden ser de CUALQUIER municipio/parroquia, así que cargamos todo.
+            'todasLasComunas' => $this->todasLasComunasParaMultiselect(),
+            'todosLosConsejosComunales' => $this->todosLosCCsParaMultiselect(),
         ]);
     }
 
@@ -116,10 +138,29 @@ class ReporteController extends Controller
     {
         $data = $request->validated();
         $esBorrador = (bool) ($data['guardar_como_borrador'] ?? false);
-        unset($data['guardar_como_borrador'], $data['fotos']);
 
-        $reporte = DB::transaction(function () use ($data, $request, $esBorrador) {
+        // BLOQUE 5: extraemos los IDs adicionales antes de crear el modelo
+        // (no son columnas, son pivotes — se manejan via sync()).
+        $comunasAdicionales = $data['comunas_adicionales_ids'] ?? [];
+        $ccsAdicionales = $data['consejos_comunales_adicionales_ids'] ?? [];
+
+        unset(
+            $data['guardar_como_borrador'],
+            $data['fotos'],
+            $data['comunas_adicionales_ids'],
+            $data['consejos_comunales_adicionales_ids'],
+            // Las cantidades se calculan automáticamente desde los pivotes — ignoramos lo que mande el cliente.
+            $data['cantidad_comunas_atendidas'],
+            $data['cantidad_consejos_comunales_atendidos'],
+        );
+
+        $reporte = DB::transaction(function () use ($data, $request, $esBorrador, $comunasAdicionales, $ccsAdicionales) {
             $reporte = Reporte::create($data);
+
+            // BLOQUE 5: sync de los pivotes y recalculo de cantidades cacheadas.
+            $reporte->comunasAdicionales()->sync($comunasAdicionales);
+            $reporte->consejosComunalesAdicionales()->sync($ccsAdicionales);
+            $reporte->recalcularCantidadesYGuardar();
 
             if ($request->hasFile('fotos')) {
                 $orden = 1;
@@ -155,12 +196,21 @@ class ReporteController extends Controller
     public function show(Reporte $reporte): Response
     {
         $reporte->load([
-            'tecnico:id,nombre_apellido,cedula,foto_perfil',
+            // BLOQUE 4: cargamos los campos físicos del técnico; el accessor concatena.
+            'tecnico:id,nombre,apellido,tipo_documento,cedula,foto_perfil',
             'municipio:id,nombre',
             'parroquia:id,nombre',
-            'comuna:id,nombre',
-            'consejoComunal:id,nombre',
+            'comuna:id,nombre,parroquia_id',
+            'consejoComunal:id,nombre,comuna_id',
             'fotos',
+            // BLOQUE 5: pivotes con jerarquía denormalizada para mostrar contexto.
+            'comunasAdicionales:id,nombre,parroquia_id',
+            'comunasAdicionales.parroquia:id,nombre,municipio_id',
+            'comunasAdicionales.parroquia.municipio:id,nombre',
+            'consejosComunalesAdicionales:id,nombre,comuna_id',
+            'consejosComunalesAdicionales.comuna:id,nombre,parroquia_id',
+            'consejosComunalesAdicionales.comuna.parroquia:id,nombre,municipio_id',
+            'consejosComunalesAdicionales.comuna.parroquia.municipio:id,nombre',
         ]);
 
         return Inertia::render('Reportes/Show', [
@@ -170,7 +220,12 @@ class ReporteController extends Controller
 
     public function edit(Reporte $reporte): Response
     {
-        $reporte->load(['fotos:id,reporte_id,ruta,nombre_original,orden']);
+        $reporte->load([
+            'fotos:id,reporte_id,ruta,nombre_original,orden',
+            // BLOQUE 5: cargamos solo los IDs de los pivotes (todos los datos vienen del catálogo)
+            'comunasAdicionales:id',
+            'consejosComunalesAdicionales:id',
+        ]);
 
         return Inertia::render('Reportes/Edit', [
             'reporte' => [
@@ -184,6 +239,9 @@ class ReporteController extends Controller
                 'consejo_comunal_id' => $reporte->consejo_comunal_id,
                 'cantidad_comunas_atendidas' => $reporte->cantidad_comunas_atendidas,
                 'cantidad_consejos_comunales_atendidos' => $reporte->cantidad_consejos_comunales_atendidos,
+                // BLOQUE 5: IDs adicionales para preseleccionar en los multi-selects
+                'comunas_adicionales_ids' => $reporte->comunasAdicionales->pluck('id')->all(),
+                'consejos_comunales_adicionales_ids' => $reporte->consejosComunalesAdicionales->pluck('id')->all(),
                 'lugar' => $reporte->lugar,
                 'cantidad_personas_atendidas' => $reporte->cantidad_personas_atendidas,
                 'cantidad_personas_a_beneficiar' => $reporte->cantidad_personas_a_beneficiar,
@@ -206,8 +264,19 @@ class ReporteController extends Controller
                     'orden' => $f->orden,
                 ]),
             ],
-            'tecnicos' => Tecnico::activos()->orderBy('nombre_apellido')->get(['id', 'nombre_apellido', 'cedula']),
+            'tecnicos' => Tecnico::activos()
+                ->orderBy('nombre')->orderBy('apellido')
+                ->get(['id', 'nombre', 'apellido', 'tipo_documento', 'cedula'])
+                ->map(fn ($t) => [
+                    'id' => $t->id,
+                    'nombre_apellido' => $t->nombre_apellido,
+                    'cedula' => $t->cedula,
+                    'documento_completo' => $t->documento_completo,
+                ]),
             'municipios' => Municipio::orderBy('nombre')->get(['id', 'nombre']),
+            // BLOQUE 5: catálogos completos para los multi-selects
+            'todasLasComunas' => $this->todasLasComunasParaMultiselect(),
+            'todosLosConsejosComunales' => $this->todosLosCCsParaMultiselect(),
         ]);
     }
 
@@ -216,16 +285,35 @@ class ReporteController extends Controller
         $data = $request->validated();
         $esBorrador = (bool) ($data['guardar_como_borrador'] ?? false);
         $fotosEliminar = $data['fotos_eliminar'] ?? [];
-        unset($data['guardar_como_borrador'], $data['fotos'], $data['fotos_eliminar']);
 
-        DB::transaction(function () use ($data, $request, $reporte, $esBorrador, $fotosEliminar) {
+        // BLOQUE 5: extraemos los IDs adicionales antes de update() (son pivotes).
+        $comunasAdicionales = $data['comunas_adicionales_ids'] ?? [];
+        $ccsAdicionales = $data['consejos_comunales_adicionales_ids'] ?? [];
+
+        unset(
+            $data['guardar_como_borrador'],
+            $data['fotos'],
+            $data['fotos_eliminar'],
+            $data['comunas_adicionales_ids'],
+            $data['consejos_comunales_adicionales_ids'],
+            $data['cantidad_comunas_atendidas'],
+            $data['cantidad_consejos_comunales_atendidos'],
+        );
+
+        DB::transaction(function () use ($data, $request, $reporte, $esBorrador, $fotosEliminar, $comunasAdicionales, $ccsAdicionales) {
             $reporte->update($data);
+
+            // BLOQUE 5: sync de pivotes — sync() reemplaza la lista completa
+            // (agrega los nuevos, quita los desmarcados).
+            $reporte->comunasAdicionales()->sync($comunasAdicionales);
+            $reporte->consejosComunalesAdicionales()->sync($ccsAdicionales);
 
             // Eliminar fotos marcadas
             if (!empty($fotosEliminar)) {
                 $fotos = FotoReporte::where('reporte_id', $reporte->id)
                     ->whereIn('id', $fotosEliminar)
                     ->get();
+                /** @var FotoReporte $foto */
                 foreach ($fotos as $foto) {
                     $foto->delete(); // borra archivo también (ver booted() del modelo)
                 }
@@ -258,6 +346,11 @@ class ReporteController extends Controller
             }
 
             $reporte->refresh();
+
+            // BLOQUE 5: recalcular cantidades cacheadas desde los pivotes
+            $reporte->cantidad_comunas_atendidas = $reporte->calcularCantidadComunasAtendidas();
+            $reporte->cantidad_consejos_comunales_atendidos = $reporte->calcularCantidadConsejosComunalesAtendidos();
+
             $reporte->estado_reporte = $esBorrador ? 'borrador' : $reporte->calcularEstado();
             $reporte->save();
         });
@@ -287,12 +380,19 @@ class ReporteController extends Controller
     public function pdf(Reporte $reporte): HttpResponse
     {
         $reporte->load([
-            'tecnico:id,nombre_apellido,cedula',
+            // BLOQUE 4 + 4.5: técnico con todos los campos institucionales + especialidades JSON.
+            'tecnico:id,nombre,apellido,tipo_documento,cedula,especialidades',
             'municipio:id,nombre',
             'parroquia:id,nombre',
             'comuna:id,nombre',
             'consejoComunal:id,nombre',
             'fotos' => fn ($q) => $q->orderBy('orden'),
+            // BLOQUE 5: pivotes con jerarquía denormalizada para mostrar contexto en el PDF
+            'comunasAdicionales:id,nombre,parroquia_id',
+            'comunasAdicionales.parroquia:id,nombre,municipio_id',
+            'comunasAdicionales.parroquia.municipio:id,nombre',
+            'consejosComunalesAdicionales:id,nombre,comuna_id',
+            'consejosComunalesAdicionales.comuna:id,nombre',
         ]);
 
         // Adjuntar absolute_path a cada foto (resuelto desde el disk privado fotos_privadas).
@@ -307,9 +407,9 @@ class ReporteController extends Controller
             ->setOption('isRemoteEnabled', false) // seguridad: NO permitir URLs externas
             ->setOption('isHtml5ParserEnabled', true);
 
-        $filename = sprintf(
+        $filename = \sprintf(
             'reporte_%s_%s.pdf',
-            str_pad((string) $reporte->id, 6, '0', STR_PAD_LEFT),
+            \str_pad((string) $reporte->id, 6, '0', STR_PAD_LEFT),
             $reporte->fecha?->format('Y-m-d') ?? 'sin-fecha'
         );
 
@@ -326,7 +426,10 @@ class ReporteController extends Controller
             'tecnico' => $r->tecnico ? [
                 'id' => $r->tecnico->id,
                 'nombre_apellido' => $r->tecnico->nombre_apellido,
+                // BLOQUE 4: tipo + cédula separados para mostrar pill institucional en la vista
+                'tipo_documento' => $r->tecnico->tipo_documento,
                 'cedula' => $r->tecnico->cedula,
+                'documento_completo' => $r->tecnico->documento_completo, // ej. "V-12345678"
                 'foto_url' => $r->tecnico->foto_perfil_url, // accessor autenticado
             ] : null,
             'ubicacion' => [
@@ -335,6 +438,21 @@ class ReporteController extends Controller
                 'parroquia' => $r->parroquia?->nombre,
                 'comuna' => $r->comuna?->nombre,
                 'consejo_comunal' => $r->consejoComunal?->nombre,
+                // BLOQUE 5: comunas y CCs adicionales con su jerarquía completa
+                // para que la vista muestre dónde están geográficamente.
+                'comunas_adicionales' => $r->comunasAdicionales->map(fn ($c) => [
+                    'id' => $c->id,
+                    'nombre' => $c->nombre,
+                    'parroquia' => $c->parroquia?->nombre,
+                    'municipio' => $c->parroquia?->municipio?->nombre,
+                ]),
+                'consejos_comunales_adicionales' => $r->consejosComunalesAdicionales->map(fn ($cc) => [
+                    'id' => $cc->id,
+                    'nombre' => $cc->nombre,
+                    'comuna' => $cc->comuna?->nombre,
+                    'parroquia' => $cc->comuna?->parroquia?->nombre,
+                    'municipio' => $cc->comuna?->parroquia?->municipio?->nombre,
+                ]),
             ],
             'metricas' => [
                 'cantidad_comunas_atendidas' => $r->cantidad_comunas_atendidas,
@@ -367,5 +485,65 @@ class ReporteController extends Controller
             'created_at' => $r->created_at?->format('d/m/Y H:i'),
             'updated_at' => $r->updated_at?->format('d/m/Y H:i'),
         ];
+    }
+
+    /**
+     * BLOQUE 5: Catálogo completo de comunas con su jerarquía (parroquia + municipio)
+     * para alimentar el multi-select de "otras comunas atendidas".
+     *
+     * El label se enriquece con el municipio para evitar ambigüedad: dos parroquias
+     * en distintos municipios pueden tener una comuna con el mismo nombre.
+     * Formato: "Comuna X — Parroquia Y (Municipio Z)"
+     */
+    private function todasLasComunasParaMultiselect(): array
+    {
+        return \App\Models\Comuna::with(['parroquia:id,nombre,municipio_id', 'parroquia.municipio:id,nombre'])
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'parroquia_id'])
+            ->map(fn ($c) => [
+                'id' => $c->id,
+                'nombre' => $c->nombre,
+                'parroquia' => $c->parroquia?->nombre,
+                'municipio' => $c->parroquia?->municipio?->nombre,
+                // Label compuesto que el frontend usa para mostrar y buscar
+                'label' => \sprintf(
+                    '%s — %s (%s)',
+                    $c->nombre,
+                    $c->parroquia?->nombre ?? '?',
+                    $c->parroquia?->municipio?->nombre ?? '?'
+                ),
+            ])
+            ->all();
+    }
+
+    /**
+     * BLOQUE 5: Catálogo completo de consejos comunales con jerarquía completa.
+     * Mismo razonamiento que las comunas — el label compuesto evita ambigüedad
+     * cuando hay CCs con nombres similares en distintas parroquias.
+     */
+    private function todosLosCCsParaMultiselect(): array
+    {
+        return \App\Models\ConsejoComunal::with([
+                'comuna:id,nombre,parroquia_id',
+                'comuna.parroquia:id,nombre,municipio_id',
+                'comuna.parroquia.municipio:id,nombre',
+            ])
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'comuna_id'])
+            ->map(fn ($cc) => [
+                'id' => $cc->id,
+                'nombre' => $cc->nombre,
+                'comuna' => $cc->comuna?->nombre,
+                'parroquia' => $cc->comuna?->parroquia?->nombre,
+                'municipio' => $cc->comuna?->parroquia?->municipio?->nombre,
+                'label' => \sprintf(
+                    '%s — %s, %s (%s)',
+                    $cc->nombre,
+                    $cc->comuna?->nombre ?? '?',
+                    $cc->comuna?->parroquia?->nombre ?? '?',
+                    $cc->comuna?->parroquia?->municipio?->nombre ?? '?'
+                ),
+            ])
+            ->all();
     }
 }

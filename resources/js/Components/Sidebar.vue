@@ -44,14 +44,9 @@ const menu = [
             { label: 'Importar Excel', href: '/ubicaciones/importar' },
         ],
     },
-    {
-        id: 'exportar', label: 'Exportar', icon: 'exportar', match: '/exportar',
-        defaultHref: '/exportar/pdf',
-        sub: [
-            { label: 'Generar PDF', href: '/exportar/pdf' },
-            { label: 'Descargar Excel', href: '/exportar/excel' },
-        ],
-    },
+    // Generar Reportes: una sola pantalla con filtros + 2 botones (PDF / Excel) al final.
+    // Sin sub-items para no llenar el sidebar. Se actualiza en BLOQUE 2 con la nueva ruta.
+    { id: 'exportar', label: 'Generar Reportes', icon: 'exportar', href: '/generar-reportes' },
     {
         id: 'backup', label: 'Respaldo', icon: 'backup', match: '/backups',
         defaultHref: '/backups',

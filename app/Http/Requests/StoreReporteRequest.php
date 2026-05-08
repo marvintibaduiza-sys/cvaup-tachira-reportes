@@ -34,8 +34,16 @@ class StoreReporteRequest extends FormRequest
             'parroquia_id' => [...$reqIfFinal, 'integer', 'exists:parroquias,id'],
             'comuna_id' => [...$reqIfFinal, 'integer', 'exists:comunas,id'],
             'consejo_comunal_id' => [...$reqIfFinal, 'integer', 'exists:consejos_comunales,id'],
-            'cantidad_comunas_atendidas' => ['nullable', 'integer', 'min:0'],
-            'cantidad_consejos_comunales_atendidos' => ['nullable', 'integer', 'min:0'],
+
+            // BLOQUE 5: comunas/CCs ADICIONALES atendidos en la misma jornada.
+            // Pueden ser de cualquier municipio/parroquia (caso real: actividad especial).
+            // El sistema calcula automáticamente la cantidad total: 1 (principal) + count(adicionales).
+            // Tope de 50 para evitar abuso (ningún técnico atiende más en un día razonable).
+            'comunas_adicionales_ids' => ['nullable', 'array', 'max:50'],
+            'comunas_adicionales_ids.*' => ['integer', 'distinct', 'exists:comunas,id'],
+            'consejos_comunales_adicionales_ids' => ['nullable', 'array', 'max:50'],
+            'consejos_comunales_adicionales_ids.*' => ['integer', 'distinct', 'exists:consejos_comunales,id'],
+
             'lugar' => ['nullable', 'string', 'max:255'],
 
             // Atención
@@ -116,6 +124,21 @@ class StoreReporteRequest extends FormRequest
                 if ($existe) {
                     $v->errors()->add('fecha', 'Este técnico ya tiene un reporte registrado para esa fecha.');
                 }
+            }
+
+            // 4) BLOQUE 5: la comuna/CC PRINCIPAL no debe duplicarse en los pivotes.
+            //    Si el técnico ya marcó la comuna X como principal, no tiene sentido
+            //    que aparezca también en "otras comunas atendidas".
+            $comunaPrincipal = $this->input('comuna_id');
+            $comunasAdicionales = (array) $this->input('comunas_adicionales_ids', []);
+            if ($comunaPrincipal && \in_array((int) $comunaPrincipal, array_map('intval', $comunasAdicionales), true)) {
+                $v->errors()->add('comunas_adicionales_ids', 'La comuna principal no debe aparecer también en "otras comunas atendidas".');
+            }
+
+            $ccPrincipal = $this->input('consejo_comunal_id');
+            $ccsAdicionales = (array) $this->input('consejos_comunales_adicionales_ids', []);
+            if ($ccPrincipal && \in_array((int) $ccPrincipal, array_map('intval', $ccsAdicionales), true)) {
+                $v->errors()->add('consejos_comunales_adicionales_ids', 'El consejo comunal principal no debe aparecer también en "otros consejos comunales atendidos".');
             }
         });
     }

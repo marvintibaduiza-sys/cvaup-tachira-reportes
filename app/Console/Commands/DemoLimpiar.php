@@ -10,10 +10,12 @@ use Illuminate\Support\Facades\DB;
 /**
  * Elimina TODOS los datos demo creados por `demo:poblar`.
  *
- * Identifica los registros demo por el marcador "[DEMO]" en `nombre_apellido`
- * del técnico. Borra todos los reportes asociados a esos técnicos (sin importar
- * el prefijo del título — defensa frente a reportes huérfanos creados manualmente
- * sobre técnicos demo durante testing) y luego force-elimina los técnicos.
+ * Identifica los registros demo por la cédula con prefijo 9999 (DemoPoblar::CEDULA_PREFIX).
+ * Tras BLOQUE 4 la columna nombre_apellido ya no existe — usar la cédula es además
+ * más confiable porque no se puede editar accidentalmente desde la UI (UNIQUE constraint).
+ * Borra todos los reportes asociados a esos técnicos (sin importar el prefijo del
+ * título — defensa frente a reportes huérfanos creados manualmente sobre técnicos
+ * demo durante testing) y luego force-elimina los técnicos.
  *
  * Mismas guardas que demo:poblar (no producción + confirmación).
  *
@@ -38,7 +40,7 @@ class DemoLimpiar extends Command
         }
 
         // ── Identificación de qué se va a borrar ────────────────────────
-        // Estrategia: el marcador autoritativo está en Tecnico.nombre_apellido.
+        // Estrategia: identificar técnicos demo por la cédula con prefijo 9999.
         // Cualquier reporte asociado a un técnico demo se considera demo (incluso
         // si por error no tiene el prefijo en su título — escenario común durante
         // tests manuales).
@@ -49,7 +51,7 @@ class DemoLimpiar extends Command
         //  bloquea el borrado del técnico padre. Por eso usamos withTrashed() en TODOS
         //  los conteos y queries de borrado, y forceDelete() para borrado físico.
         $tecnicosDemoIds = Tecnico::withTrashed()
-            ->where('nombre_apellido', 'LIKE', DemoPoblar::MARCADOR . '%')
+            ->where('cedula', 'LIKE', DemoPoblar::CEDULA_PREFIX . '%')
             ->pluck('id');
 
         $reportesAsociadosCount = Reporte::withTrashed()
@@ -99,7 +101,7 @@ class DemoLimpiar extends Command
 
                 // PASO 2: ya con reportes fuera, force-delete los técnicos.
                 $tecnicosBorrados = Tecnico::withTrashed()
-                    ->where('nombre_apellido', 'LIKE', DemoPoblar::MARCADOR . '%')
+                    ->where('cedula', 'LIKE', DemoPoblar::CEDULA_PREFIX . '%')
                     ->forceDelete();
             });
         } catch (\Throwable $e) {

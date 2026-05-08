@@ -7,6 +7,9 @@ import { Head, useForm } from '@inertiajs/vue3';
 defineProps({
     tecnicos: { type: Array, default: () => [] },
     municipios: { type: Array, default: () => [] },
+    // BLOQUE 5: catálogos completos para multi-selects
+    todasLasComunas: { type: Array, default: () => [] },
+    todosLosConsejosComunales: { type: Array, default: () => [] },
 });
 
 const today = new Date().toISOString().split('T')[0];
@@ -19,8 +22,9 @@ const form = useForm({
     parroquia_id: null,
     comuna_id: null,
     consejo_comunal_id: null,
-    cantidad_comunas_atendidas: null,
-    cantidad_consejos_comunales_atendidos: null,
+    // BLOQUE 5: pivotes de adicionales (system calcula cantidad automáticamente)
+    comunas_adicionales_ids: [],
+    consejos_comunales_adicionales_ids: [],
     lugar: '',
     cantidad_personas_atendidas: null,
     cantidad_personas_a_beneficiar: null,
@@ -57,6 +61,8 @@ const submit = () => {
                     :form="form"
                     :tecnicos="tecnicos"
                     :municipios="municipios"
+                    :todas-las-comunas="todasLasComunas"
+                    :todos-los-consejos-comunales="todosLosConsejosComunales"
                     @submit="submit"
                 />
             </Card>

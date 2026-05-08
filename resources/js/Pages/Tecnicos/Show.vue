@@ -16,6 +16,20 @@ const props = defineProps({
 
 const initial = computed(() => props.tecnico.nombre_apellido?.charAt(0)?.toUpperCase() ?? 'T');
 
+// Mapeo de tipo de documento a su etiqueta legible (BLOQUE 4).
+// Si el backend no envió el label, mostramos solo el código.
+const TIPOS_DOCUMENTO_LABELS = {
+    V: 'Venezolano',
+    E: 'Extranjero residente',
+    J: 'Jurídico (empresa)',
+    G: 'Gobierno',
+    P: 'Pasaporte',
+};
+const tipoDocumentoLabel = computed(() => {
+    const t = props.tecnico.tipo_documento;
+    return t ? `${t} — ${TIPOS_DOCUMENTO_LABELS[t] ?? 'Documento'}` : 'Documento';
+});
+
 const tasaColor = computed(() => {
     const t = props.estadisticas.tasa_cumplimiento_mes ?? 0;
     if (t >= 80) return 'text-green-600';
@@ -60,7 +74,18 @@ const toggleEstado = () => {
                         <div class="flex items-start justify-between flex-wrap gap-3">
                             <div>
                                 <h2 class="text-xl font-bold text-slate-800">{{ tecnico.nombre_apellido }}</h2>
-                                <p class="text-sm text-slate-500">{{ tecnico.cedula }}</p>
+                                <!-- Documento institucional: tipo (V/E/J/G/P) como pill + cédula sin puntos -->
+                                <p class="text-sm text-slate-500 tabular-nums flex items-center gap-2 mt-1">
+                                    <span
+                                        class="inline-flex items-center justify-center min-w-[28px] h-5 px-1.5 rounded bg-cvaup-primary/10 text-cvaup-primary text-[11px] font-bold border border-cvaup-primary/20"
+                                        :title="tipoDocumentoLabel"
+                                    >
+                                        {{ tecnico.tipo_documento }}
+                                    </span>
+                                    <span>{{ tecnico.cedula }}</span>
+                                    <span class="text-slate-300">·</span>
+                                    <span class="text-slate-400 text-[11px]">{{ tecnico.documento_completo }}</span>
+                                </p>
                                 <div class="mt-2">
                                     <Badge :type="tecnico.estado === 'activo' ? 'activo' : 'inactivo'" />
                                 </div>
@@ -100,13 +125,35 @@ const toggleEstado = () => {
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 mt-4 text-sm">
+                            <!-- BLOQUE 4: nombre y apellido como campos separados -->
+                            <div>
+                                <span class="text-slate-500">Nombre:</span>
+                                <span class="ml-2 text-slate-700">{{ tecnico.nombre || '—' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500">Apellido:</span>
+                                <span class="ml-2 text-slate-700">{{ tecnico.apellido || '—' }}</span>
+                            </div>
                             <div>
                                 <span class="text-slate-500">Teléfono:</span>
                                 <span class="ml-2 text-slate-700">{{ tecnico.telefono || '—' }}</span>
                             </div>
-                            <div>
-                                <span class="text-slate-500">Especialidad:</span>
-                                <span class="ml-2 text-slate-700">{{ tecnico.especialidad || '—' }}</span>
+                            <div class="sm:col-span-2">
+                                <span class="text-slate-500">Especialidades:</span>
+                                <!-- BLOQUE 4.5: render como chips. Vacío → "—" -->
+                                <span
+                                    v-if="!tecnico.especialidades || tecnico.especialidades.length === 0"
+                                    class="ml-2 text-slate-400"
+                                >—</span>
+                                <span v-else class="inline-flex flex-wrap gap-1.5 ml-2 align-middle">
+                                    <span
+                                        v-for="esp in tecnico.especialidades"
+                                        :key="esp"
+                                        class="bg-cvaup-primary/10 text-cvaup-primary border border-cvaup-primary/20 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                                    >
+                                        {{ esp }}
+                                    </span>
+                                </span>
                             </div>
                             <div class="sm:col-span-2">
                                 <span class="text-slate-500">Zonas asignadas:</span>

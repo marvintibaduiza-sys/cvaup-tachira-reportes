@@ -30,12 +30,36 @@ class UbicacionLookupController extends Controller
         );
     }
 
+    /**
+     * Lista parroquias filtradas por uno O VARIOS municipios.
+     *
+     * Acepta:
+     *   ?municipio_id=5           (singular, compat con Reportes form que es cascada simple)
+     *   ?municipio_ids[]=5&municipio_ids[]=8   (multi, usado por filtros de Generar Reportes)
+     *
+     * Si se envían ambos, prioriza el array.
+     */
     public function parroquias(Request $request): JsonResponse
     {
-        $request->validate(['municipio_id' => 'required|integer|exists:municipios,id']);
+        $request->validate([
+            'municipio_id' => 'nullable|integer|exists:municipios,id',
+            'municipio_ids' => 'nullable|array',
+            'municipio_ids.*' => 'integer|exists:municipios,id',
+        ]);
+
+        $ids = $request->input('municipio_ids');
+        if (!is_array($ids) || empty($ids)) {
+            // Fallback al singular (compat con form de reportes)
+            $singular = $request->integer('municipio_id');
+            $ids = $singular ? [$singular] : [];
+        }
+
+        if (empty($ids)) {
+            return response()->json([]);
+        }
 
         return response()->json(
-            Parroquia::where('municipio_id', $request->integer('municipio_id'))
+            Parroquia::whereIn('municipio_id', $ids)
                 ->orderBy('nombre')
                 ->get(['id', 'nombre'])
         );

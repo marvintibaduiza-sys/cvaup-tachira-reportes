@@ -64,7 +64,8 @@ class DashboardController extends Controller
             ->with(['reportes' => function ($q) use ($hoy) {
                 $q->whereDate('fecha', $hoy)->latest('fecha');
             }])
-            ->orderBy('nombre_apellido')
+            // Ordenamos por nombre+apellido (la columna nombre_apellido ya no existe — BLOQUE 4)
+            ->orderBy('nombre')->orderBy('apellido')
             ->get();
 
         return $tecnicos->map(function (Tecnico $t) use ($hoy, $esFinDeSemana) {
@@ -161,11 +162,15 @@ class DashboardController extends Controller
         $inicioMes = $hoy->copy()->startOfMonth();
         $finMes = $hoy->copy()->endOfMonth();
 
+        // Concatenamos nombre + apellido en SQL (la columna nombre_apellido ya no existe — BLOQUE 4)
         return Reporte::query()
-            ->select('tecnicos.nombre_apellido as nombre', DB::raw('COUNT(reportes.id) as count'))
+            ->select(
+                DB::raw("CONCAT(tecnicos.nombre, ' ', tecnicos.apellido) as nombre"),
+                DB::raw('COUNT(reportes.id) as count')
+            )
             ->join('tecnicos', 'tecnicos.id', '=', 'reportes.tecnico_id')
             ->whereBetween('reportes.fecha', [$inicioMes, $finMes])
-            ->groupBy('tecnicos.id', 'tecnicos.nombre_apellido')
+            ->groupBy('tecnicos.id', 'tecnicos.nombre', 'tecnicos.apellido')
             ->orderByDesc('count')
             ->limit(10)
             ->get()

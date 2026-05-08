@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import axios from 'axios';
 import FormField from '@/Components/FormField.vue';
 import Icon from '@/Components/Icon.vue';
+import MultiSelect from '@/Components/MultiSelect.vue';
 
 /**
  * FormFiltros — formulario de filtros compartido entre PDF y CSV.
@@ -20,24 +21,40 @@ const props = defineProps({
     submitLabel: { type: String, default: 'Generar' },
     submitting: { type: Boolean, default: false },
     showComparativa: { type: Boolean, default: false }, // solo para PDF, no aplica a CSV
+    // Cuando se usa embebido en pantalla unificada (Generar Reportes con 2 botones PDF/Excel),
+    // ocultar el botón interno de submit. La pantalla padre maneja los botones reales.
+    hideSubmit: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:filters', 'submit']);
 
 const inputClass = 'w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:border-cvaup-primary focus:ring focus:ring-cvaup-primary/20 outline-none transition';
 
-// Cascada de parroquias cuando cambia municipio
+// Opciones del multi-select de "Estados del reporte"
+// El MultiSelect requiere objetos con {id, label}, así que convertimos los string-states.
+const estadoOpciones = [
+    { id: 'completo', label: 'Completo' },
+    { id: 'incompleto', label: 'Incompleto' },
+    { id: 'borrador', label: 'Borrador' },
+];
+
+// Cascada de parroquias cuando cambian los municipios seleccionados.
+// Multi-select: el filtro municipio_ids es un array. Las parroquias mostradas
+// son la UNIÓN de las parroquias de TODOS los municipios seleccionados.
 const parroquias = ref([]);
 const loadingParroquias = ref(false);
 
-const loadParroquias = async (municipioId) => {
-    if (!municipioId) {
+const loadParroquias = async (municipioIds) => {
+    if (!Array.isArray(municipioIds) || municipioIds.length === 0) {
         parroquias.value = [];
         return;
     }
     loadingParroquias.value = true;
     try {
-        const { data } = await axios.get('/api/parroquias', { params: { municipio_id: municipioId } });
+        // Backend acepta `municipio_ids[]` (nuevo) y mantiene compat con `municipio_id` (singular)
+        const params = new URLSearchParams();
+        municipioIds.forEach((id) => params.append('municipio_ids[]', id));
+        const { data } = await axios.get('/api/parroquias?' + params.toString());
         parroquias.value = data;
     } catch (e) {
         parroquias.value = [];
@@ -46,11 +63,48 @@ const loadParroquias = async (municipioId) => {
     }
 };
 
-// Reset parroquia cuando cambia el municipio
-watch(() => props.filters.municipio_id, async (newVal) => {
-    props.filters.parroquia_id = null;
+// Reset parroquias seleccionadas cuando cambian los municipios elegidos.
+// Si quito un municipio, también quito las parroquias de ese municipio que estaban seleccionadas.
+watch(() => props.filters.municipio_ids, async (newVal) => {
     await loadParroquias(newVal);
-});
+    // Filtrar parroquias seleccionadas que ya no pertenecen a los municipios actuales
+    const validIds = parroquias.value.map((p) => p.id);
+    props.filters.parroquia_ids = (props.filters.parroquia_ids ?? []).filter((id) => validIds.includes(id));
+}, { deep: true });
+
+/**
+ * UX inteligente: cuando el usuario agrega un técnico al filtro,
+ * pre-selecciona automáticamente los municipios donde ese técnico está asignado.
+ *
+ * Reglas:
+ *  - SOLO agrega (nunca quita automáticamente). El usuario decide qué quitar.
+ *  - Solo dispara para técnicos NUEVOS (no para los que ya estaban en la lista).
+ *  - Sin duplicados (Set).
+ *  - Si el técnico no tiene municipios asignados, no agrega nada.
+ *
+ * Las parroquias siguen siendo 100% manuales — el sistema NO las pre-selecciona.
+ */
+watch(() => props.filters.tecnico_ids, (newIds, oldIds) => {
+    const previos = new Set(oldIds ?? []);
+    const nuevos = (newIds ?? []).filter((id) => !previos.has(id));
+    if (nuevos.length === 0) return;
+
+    // Calcular municipios a agregar = unión de municipios asignados a los técnicos NUEVOS
+    const municipiosActuales = new Set(props.filters.municipio_ids ?? []);
+    for (const tecnicoId of nuevos) {
+        const tecnico = (props.lookups.tecnicos ?? []).find((t) => t.id === tecnicoId);
+        const ids = tecnico?.municipios_ids ?? [];
+        for (const mid of ids) {
+            municipiosActuales.add(mid);
+        }
+    }
+
+    // Solo actualizar si hubo agregados reales (evita loop reactivo)
+    const finalArr = Array.from(municipiosActuales);
+    if (finalArr.length !== (props.filters.municipio_ids?.length ?? 0)) {
+        props.filters.municipio_ids = finalArr;
+    }
+}, { deep: false });
 
 // Preview en vivo del conteo (debounced)
 const previewCount = ref(null);
@@ -60,7 +114,7 @@ let previewTimer = null;
 const fetchPreview = async () => {
     previewLoading.value = true;
     try {
-        const { data } = await axios.get('/exportar/preview', { params: cleanFilters() });
+        const { data } = await axios.get('/generar-reportes/preview', { params: cleanFilters() });
         previewCount.value = data.count;
     } catch (e) {
         previewCount.value = null;
@@ -72,7 +126,10 @@ const fetchPreview = async () => {
 const cleanFilters = () => {
     const cleaned = { ...props.filters };
     Object.keys(cleaned).forEach((k) => {
-        if (cleaned[k] === '' || cleaned[k] === null) delete cleaned[k];
+        const v = cleaned[k];
+        // Eliminar vacíos: null, '', false, arrays vacíos
+        if (v === '' || v === null || v === false) delete cleaned[k];
+        if (Array.isArray(v) && v.length === 0) delete cleaned[k];
     });
     return cleaned;
 };
@@ -90,11 +147,13 @@ onMounted(() => {
 });
 
 const limpiar = () => {
-    Object.keys(props.filters).forEach((k) => {
-        props.filters[k] = ['estado_reporte'].includes(k) ? 'todos' : null;
-    });
+    // Multi-select: arrays vacíos. Fechas: strings vacíos. Booleans: false.
     if ('desde' in props.filters) props.filters.desde = '';
     if ('hasta' in props.filters) props.filters.hasta = '';
+    if ('tecnico_ids' in props.filters) props.filters.tecnico_ids = [];
+    if ('municipio_ids' in props.filters) props.filters.municipio_ids = [];
+    if ('parroquia_ids' in props.filters) props.filters.parroquia_ids = [];
+    if ('estados_reporte' in props.filters) props.filters.estados_reporte = [];
     if ('comparar' in props.filters) props.filters.comparar = false;
     if ('desde_comparacion' in props.filters) props.filters.desde_comparacion = '';
     if ('hasta_comparacion' in props.filters) props.filters.hasta_comparacion = '';
@@ -156,40 +215,47 @@ watch(() => [props.filters.desde, props.filters.hasta], () => {
             </FormField>
         </div>
 
-        <!-- Técnico -->
-        <FormField label="Técnico" hint="Filtra por un técnico específico">
-            <select v-model="filters.tecnico_id" :class="inputClass">
-                <option :value="null">Todos los técnicos</option>
-                <option v-for="t in lookups.tecnicos" :key="t.id" :value="t.id">
-                    {{ t.nombre_apellido }} ({{ t.cedula }})
-                </option>
-            </select>
+        <!-- Técnico (multi-select) -->
+        <FormField label="Técnico(s)" hint="Selecciona uno, varios, o ninguno = todos">
+            <MultiSelect
+                v-model="filters.tecnico_ids"
+                :options="lookups.tecnicos"
+                placeholder="Todos los técnicos"
+                label-field="nombre_apellido"
+            />
         </FormField>
 
-        <!-- Cascada Municipio → Parroquia -->
+        <!-- Cascada Municipio(s) → Parroquia(s) -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="Municipio">
-                <select v-model="filters.municipio_id" :class="inputClass">
-                    <option :value="null">Todos los municipios</option>
-                    <option v-for="m in lookups.municipios" :key="m.id" :value="m.id">{{ m.nombre }}</option>
-                </select>
+            <FormField label="Municipio(s)" hint="Selecciona uno o varios">
+                <MultiSelect
+                    v-model="filters.municipio_ids"
+                    :options="lookups.municipios"
+                    placeholder="Todos los municipios"
+                    label-field="nombre"
+                />
             </FormField>
-            <FormField label="Parroquia" :hint="filters.municipio_id ? null : 'Selecciona un municipio primero'">
-                <select v-model="filters.parroquia_id" :class="inputClass" :disabled="!filters.municipio_id || loadingParroquias">
-                    <option :value="null">{{ loadingParroquias ? 'Cargando...' : 'Todas las parroquias' }}</option>
-                    <option v-for="p in parroquias" :key="p.id" :value="p.id">{{ p.nombre }}</option>
-                </select>
+            <FormField
+                label="Parroquia(s)"
+                :hint="filters.municipio_ids?.length ? null : 'Selecciona un municipio primero'"
+            >
+                <MultiSelect
+                    v-model="filters.parroquia_ids"
+                    :options="parroquias"
+                    :placeholder="loadingParroquias ? 'Cargando...' : (filters.municipio_ids?.length ? 'Todas las parroquias' : 'Sin opciones')"
+                    label-field="nombre"
+                />
             </FormField>
         </div>
 
-        <!-- Estado del reporte -->
-        <FormField label="Estado del reporte">
-            <select v-model="filters.estado_reporte" :class="inputClass">
-                <option value="todos">Todos los estados</option>
-                <option value="completo">Solo completos</option>
-                <option value="incompleto">Solo incompletos</option>
-                <option value="borrador">Solo borradores</option>
-            </select>
+        <!-- Estado del reporte (multi-select) -->
+        <FormField label="Estado(s) del reporte" hint="Selecciona uno o varios; vacío = todos">
+            <MultiSelect
+                v-model="filters.estados_reporte"
+                :options="estadoOpciones"
+                placeholder="Todos los estados"
+                label-field="label"
+            />
         </FormField>
 
         <!-- Opciones avanzadas (solo para PDF) -->
@@ -276,7 +342,9 @@ watch(() => [props.filters.desde, props.filters.hasta], () => {
                 >
                     Limpiar filtros
                 </button>
+                <!-- Botón de submit interno: solo visible cuando el partial NO está embebido en pantalla unificada -->
                 <button
+                    v-if="!hideSubmit"
                     type="button"
                     @click="submit"
                     :disabled="submitting || previewCount === 0"

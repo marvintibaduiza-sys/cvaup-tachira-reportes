@@ -19,16 +19,22 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ExportarController extends Controller
 {
-
     /**
-     * Form de filtros para generar PDF.
+     * Pantalla UNIFICADA "Generar Reportes" — reemplaza pdfForm() y excelForm().
+     *
+     * Una sola pantalla con:
+     *  - Filtros configurables (mismo FormFiltros que antes)
+     *  - 2 botones al final: "Descargar Excel" y "Generar PDF"
+     *
+     * Razón: simplifica el sidebar (1 item vs 2) y reduce clicks del admin.
      */
-    public function pdfForm(): InertiaResponse
+    public function formUnificado(): InertiaResponse
     {
-        return Inertia::render('Exportar/Pdf', [
+        return Inertia::render('GenerarReportes/Index', [
             'lookups' => $this->lookups(),
         ]);
     }
+
 
     /**
      * Genera y descarga el PDF con la lista de reportes filtrados.
@@ -64,16 +70,6 @@ class ExportarController extends Controller
         $filename = 'reportes-' . now()->format('Y-m-d-His') . '.pdf';
 
         return $pdf->download($filename);
-    }
-
-    /**
-     * Form de filtros para generar archivo Excel.
-     */
-    public function excelForm(): InertiaResponse
-    {
-        return Inertia::render('Exportar/Excel', [
-            'lookups' => $this->lookups(),
-        ]);
     }
 
     /**
@@ -117,16 +113,26 @@ class ExportarController extends Controller
 
     /**
      * Validación común de los filtros para todos los endpoints.
+     *
+     * Multi-select: tecnico_ids, municipio_ids, parroquia_ids, estados_reporte
+     * son ARRAYS (vacío = "todos", sin filtro).
      */
     private function validateFilters(Request $request): array
     {
         return $request->validate([
             'desde' => 'nullable|date',
             'hasta' => 'nullable|date|after_or_equal:desde',
-            'tecnico_id' => 'nullable|integer|exists:tecnicos,id',
-            'municipio_id' => 'nullable|integer|exists:municipios,id',
-            'parroquia_id' => 'nullable|integer|exists:parroquias,id',
-            'estado_reporte' => 'nullable|in:completo,incompleto,borrador,todos',
+
+            // Multi-select arrays
+            'tecnico_ids' => 'nullable|array',
+            'tecnico_ids.*' => 'integer|exists:tecnicos,id',
+            'municipio_ids' => 'nullable|array',
+            'municipio_ids.*' => 'integer|exists:municipios,id',
+            'parroquia_ids' => 'nullable|array',
+            'parroquia_ids.*' => 'integer|exists:parroquias,id',
+            'estados_reporte' => 'nullable|array',
+            'estados_reporte.*' => 'in:completo,incompleto,borrador',
+
             // Comparativa opcional (Fase 12.2) — solo se valida si comparar=1
             'comparar' => 'nullable|boolean',
             'desde_comparacion' => 'nullable|date|required_with:comparar',
@@ -146,12 +152,19 @@ class ExportarController extends Controller
 
         if ($withRelations) {
             $query->with([
-                'tecnico:id,nombre_apellido,cedula',
+                // Cargamos nombre+apellido+tipo_documento+cedula+especialidades (BLOQUE 4 + 4.5)
+                'tecnico:id,nombre,apellido,tipo_documento,cedula,especialidades',
                 'municipio:id,nombre',
                 'parroquia:id,nombre',
                 'comuna:id,nombre',
                 'consejoComunal:id,nombre',
                 'fotos:id,reporte_id',
+                // BLOQUE 5: pivotes con jerarquía para mostrar contexto en exports
+                'comunasAdicionales:id,nombre,parroquia_id',
+                'comunasAdicionales.parroquia:id,nombre,municipio_id',
+                'comunasAdicionales.parroquia.municipio:id,nombre',
+                'consejosComunalesAdicionales:id,nombre,comuna_id',
+                'consejosComunalesAdicionales.comuna:id,nombre',
             ]);
         }
 
@@ -161,19 +174,19 @@ class ExportarController extends Controller
         if (!empty($filters['hasta'])) {
             $query->whereDate('fecha', '<=', $filters['hasta']);
         }
-        if (!empty($filters['tecnico_id'])) {
-            $query->where('tecnico_id', $filters['tecnico_id']);
-        }
-        if (!empty($filters['municipio_id'])) {
-            $query->where('municipio_id', $filters['municipio_id']);
-        }
-        if (!empty($filters['parroquia_id'])) {
-            $query->where('parroquia_id', $filters['parroquia_id']);
-        }
 
-        $estado = $filters['estado_reporte'] ?? 'todos';
-        if ($estado !== 'todos' && !empty($estado)) {
-            $query->where('estado_reporte', $estado);
+        // Multi-select: usar whereIn cuando hay 1+ elementos, omitir cuando vacío
+        if (!empty($filters['tecnico_ids']) && \is_array($filters['tecnico_ids'])) {
+            $query->whereIn('tecnico_id', $filters['tecnico_ids']);
+        }
+        if (!empty($filters['municipio_ids']) && \is_array($filters['municipio_ids'])) {
+            $query->whereIn('municipio_id', $filters['municipio_ids']);
+        }
+        if (!empty($filters['parroquia_ids']) && \is_array($filters['parroquia_ids'])) {
+            $query->whereIn('parroquia_id', $filters['parroquia_ids']);
+        }
+        if (!empty($filters['estados_reporte']) && \is_array($filters['estados_reporte'])) {
+            $query->whereIn('estado_reporte', $filters['estados_reporte']);
         }
 
         return $query;
@@ -320,7 +333,9 @@ class ExportarController extends Controller
 
     /**
      * Convierte filtros aplicados en un array de strings legibles para el subtítulo del PDF.
-     * "Período: 01/05/2026 al 31/05/2026", "Técnico: Francy Ordoñez (V-...)", etc.
+     * "Período: 01/05/2026 al 31/05/2026", "Técnicos: Pedro González, María López", etc.
+     *
+     * Multi-select: para listas de 1-3 elementos los lista; >3 los resume como "(N seleccionados)".
      */
     private function filtrosLegibles(array $filters): array
     {
@@ -332,30 +347,42 @@ class ExportarController extends Controller
             $textos[] = "Período: {$desde} al {$hasta}";
         }
 
-        if (!empty($filters['tecnico_id'])) {
-            $tecnico = Tecnico::find($filters['tecnico_id']);
-            if ($tecnico) {
-                $textos[] = "Técnico: {$tecnico->nombre_apellido} ({$tecnico->cedula})";
-            }
+        if (!empty($filters['tecnico_ids']) && \is_array($filters['tecnico_ids'])) {
+            // Tras BLOQUE 4 la columna nombre_apellido no existe — orderBy físico
+            // por las dos columnas reales y pluck() del accessor virtual.
+            $tecnicos = Tecnico::whereIn('id', $filters['tecnico_ids'])
+                ->orderBy('nombre')
+                ->orderBy('apellido')
+                ->get();
+            $label = $tecnicos->count() === 1 ? 'Técnico' : 'Técnicos';
+            $valor = $tecnicos->count() <= 3
+                ? $tecnicos->pluck('nombre_apellido')->implode(', ') // accessor concatenado
+                : "{$tecnicos->count()} seleccionados";
+            $textos[] = "{$label}: {$valor}";
         }
 
-        if (!empty($filters['municipio_id'])) {
-            $municipio = Municipio::find($filters['municipio_id']);
-            if ($municipio) {
-                $textos[] = "Municipio: {$municipio->nombre}";
-            }
+        if (!empty($filters['municipio_ids']) && \is_array($filters['municipio_ids'])) {
+            $municipios = Municipio::whereIn('id', $filters['municipio_ids'])->orderBy('nombre')->get();
+            $label = $municipios->count() === 1 ? 'Municipio' : 'Municipios';
+            $valor = $municipios->count() <= 3
+                ? $municipios->pluck('nombre')->implode(', ')
+                : "{$municipios->count()} seleccionados";
+            $textos[] = "{$label}: {$valor}";
         }
 
-        if (!empty($filters['parroquia_id'])) {
-            $parroquia = \App\Models\Parroquia::find($filters['parroquia_id']);
-            if ($parroquia) {
-                $textos[] = "Parroquia: {$parroquia->nombre}";
-            }
+        if (!empty($filters['parroquia_ids']) && \is_array($filters['parroquia_ids'])) {
+            $parroquias = \App\Models\Parroquia::whereIn('id', $filters['parroquia_ids'])->orderBy('nombre')->get();
+            $label = $parroquias->count() === 1 ? 'Parroquia' : 'Parroquias';
+            $valor = $parroquias->count() <= 3
+                ? $parroquias->pluck('nombre')->implode(', ')
+                : "{$parroquias->count()} seleccionadas";
+            $textos[] = "{$label}: {$valor}";
         }
 
-        $estado = $filters['estado_reporte'] ?? 'todos';
-        if ($estado !== 'todos' && !empty($estado)) {
-            $textos[] = "Estado: " . ucfirst($estado) . 's';
+        if (!empty($filters['estados_reporte']) && \is_array($filters['estados_reporte'])) {
+            $estados = collect($filters['estados_reporte'])->map(fn ($e) => ucfirst($e) . 's')->implode(', ');
+            $label = \count($filters['estados_reporte']) === 1 ? 'Estado' : 'Estados';
+            $textos[] = "{$label}: {$estados}";
         }
 
         return $textos;
@@ -363,11 +390,29 @@ class ExportarController extends Controller
 
     /**
      * Lookups precargados para los selects del form.
+     *
+     * Por cada técnico también incluimos `municipios_ids` (los IDs de los municipios
+     * que le están asignados vía tabla pivot tecnico_municipio). El frontend usa
+     * esto para PRE-SELECCIONAR automáticamente los municipios cuando se agrega
+     * un técnico al filtro — UX "sugerencia inteligente con override manual".
      */
     private function lookups(): array
     {
         return [
-            'tecnicos' => Tecnico::orderBy('nombre_apellido')->get(['id', 'nombre_apellido', 'cedula']),
+            // Lista de técnicos para el filtro. Tras BLOQUE 4 la columna nombre_apellido
+            // ya NO existe — se ordena por nombre+apellido y el accessor concatena
+            // automáticamente para mantener compatibilidad con el frontend.
+            'tecnicos' => Tecnico::with('municipios:id')
+                ->orderBy('nombre')
+                ->orderBy('apellido')
+                ->get(['id', 'nombre', 'apellido', 'tipo_documento', 'cedula'])
+                ->map(fn ($t) => [
+                    'id' => $t->id,
+                    'nombre_apellido' => $t->nombre_apellido,        // accessor concatenado
+                    'documento_completo' => $t->documento_completo,  // ej. "V-12345678"
+                    'cedula' => $t->cedula,
+                    'municipios_ids' => $t->municipios->pluck('id')->all(),
+                ]),
             'municipios' => Municipio::orderBy('nombre')->get(['id', 'nombre']),
         ];
     }
