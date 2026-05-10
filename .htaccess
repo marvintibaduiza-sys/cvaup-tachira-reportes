@@ -1,0 +1,11 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Redirigir todo al front-controller de Laravel en public/
+    # Primera regla: la raíz va directo a public/index.php
+    RewriteRule ^$ public/index.php [L]
+
+    # Segunda regla: cualquier otra ruta que no empiece por "public/"
+    # se reescribe a public/<ruta> (assets, rutas de la app, etc.)
+    RewriteRule ((?!public/).*)$ public/$1 [L,QSA]
+</IfModule>
