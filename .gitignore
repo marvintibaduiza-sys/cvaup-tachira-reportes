@@ -2,9 +2,13 @@
 /node_modules
 /vendor
 
-# ─── Build artifacts (se regeneran con npm run build) ─────────────
-/public/build
+# ─── Build artifacts ──────────────────────────────────────────────
+# /public/hot  → archivo efímero de Vite dev server (NO subir)
 /public/hot
+# NOTA: /public/build SÍ se versiona — el repo incluye los assets compilados
+# de produccion para que despliegues sin Node.js en el servidor funcionen
+# directamente. Si solo vas a desplegar con build automatizado en CI/CD,
+# puedes re-agregar /public/build a este archivo.
 /public/storage
 
 # ─── Variables de entorno (CONTIENEN SECRETS) ─────────────────────
