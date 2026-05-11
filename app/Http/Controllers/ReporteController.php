@@ -55,9 +55,9 @@ class ReporteController extends Controller
             // Escape de wildcards LIKE (post-auditoría MEDIUM #7).
             $q = SqlLike::escape(trim($filters['q']));
             $query->where(function ($w) use ($q) {
-                $w->where('titulo_actividad', 'like', "%{$q}%")
+                $w->where('tipo_actividad', 'like', "%{$q}%")
                   ->orWhere('lugar', 'like', "%{$q}%")
-                  ->orWhere('resumen_tematico', 'like', "%{$q}%");
+                  ->orWhere('descripcion_actividad', 'like', "%{$q}%");
             });
         }
         if (!empty($filters['tecnico_id'])) $query->where('tecnico_id', $filters['tecnico_id']);
@@ -81,8 +81,8 @@ class ReporteController extends Controller
             'municipio' => $r->municipio?->nombre,
             'parroquia' => $r->parroquia?->nombre,
             'consejo_comunal' => $r->consejoComunal?->nombre,
-            'titulo_actividad' => $r->titulo_actividad,
-            'participantes_acreditados' => $r->participantes_acreditados,
+            // BLOQUE 8: tipo_actividad (campo simplificado)
+            'tipo_actividad' => $r->tipo_actividad,
             'cantidad_personas_atendidas' => $r->cantidad_personas_atendidas,
             'estado_reporte' => $r->estado_reporte,
             'fotos_count' => $r->fotos->count(),
@@ -131,6 +131,8 @@ class ReporteController extends Controller
             // Pueden ser de CUALQUIER municipio/parroquia, así que cargamos todo.
             'todasLasComunas' => $this->todasLasComunasParaMultiselect(),
             'todosLosConsejosComunales' => $this->todosLosCCsParaMultiselect(),
+            // BLOQUE 8: catálogo de tipos para alimentar el dropdown del form
+            'tipos_actividad' => \App\Models\Reporte::TIPOS_ACTIVIDAD,
         ]);
     }
 
@@ -239,27 +241,18 @@ class ReporteController extends Controller
                 'consejo_comunal_id' => $reporte->consejo_comunal_id,
                 'cantidad_comunas_atendidas' => $reporte->cantidad_comunas_atendidas,
                 'cantidad_consejos_comunales_atendidos' => $reporte->cantidad_consejos_comunales_atendidos,
-                // BLOQUE 5: IDs adicionales para preseleccionar en los multi-selects
+                // BLOQUE 5: IDs adicionales para preseleccionar
                 'comunas_adicionales_ids' => $reporte->comunasAdicionales->pluck('id')->all(),
                 'consejos_comunales_adicionales_ids' => $reporte->consejosComunalesAdicionales->pluck('id')->all(),
                 'lugar' => $reporte->lugar,
                 'cantidad_personas_atendidas' => $reporte->cantidad_personas_atendidas,
                 'cantidad_personas_a_beneficiar' => $reporte->cantidad_personas_a_beneficiar,
-                'titulo_actividad' => $reporte->titulo_actividad,
-                'nombre_cientifico_rubro' => $reporte->nombre_cientifico_rubro,
-                'fecha_ejecucion' => $reporte->fecha_ejecucion?->format('Y-m-d'),
-                'ponencia_responsable' => $reporte->ponencia_responsable,
-                'material_apoyo' => $reporte->material_apoyo,
-                'organizado_por' => $reporte->organizado_por,
-                'aval_de' => $reporte->aval_de,
-                'certificacion' => $reporte->certificacion,
-                'participantes_acreditados' => $reporte->participantes_acreditados,
-                'alcance_grupo' => $reporte->alcance_grupo,
-                'resultado' => $reporte->resultado,
-                'resumen_tematico' => $reporte->resumen_tematico,
+                // BLOQUE 8: campos simplificados de actividad
+                'tipo_actividad' => $reporte->tipo_actividad,
+                'descripcion_actividad' => $reporte->descripcion_actividad,
                 'fotos_existentes' => $reporte->fotos->map(fn ($f) => [
                     'id' => $f->id,
-                    'url' => $f->url, // accessor → ruta autenticada via FotoController
+                    'url' => $f->url,
                     'nombre_original' => $f->nombre_original,
                     'orden' => $f->orden,
                 ]),
@@ -277,6 +270,8 @@ class ReporteController extends Controller
             // BLOQUE 5: catálogos completos para los multi-selects
             'todasLasComunas' => $this->todasLasComunasParaMultiselect(),
             'todosLosConsejosComunales' => $this->todosLosCCsParaMultiselect(),
+            // BLOQUE 8: catálogo de tipos para alimentar el dropdown del form
+            'tipos_actividad' => \App\Models\Reporte::TIPOS_ACTIVIDAD,
         ]);
     }
 
@@ -421,16 +416,14 @@ class ReporteController extends Controller
         return [
             'id' => $r->id,
             'fecha' => $r->fecha?->format('d/m/Y'),
-            'fecha_ejecucion' => $r->fecha_ejecucion?->format('d/m/Y'),
             'estado_reporte' => $r->estado_reporte,
             'tecnico' => $r->tecnico ? [
                 'id' => $r->tecnico->id,
                 'nombre_apellido' => $r->tecnico->nombre_apellido,
-                // BLOQUE 4: tipo + cédula separados para mostrar pill institucional en la vista
                 'tipo_documento' => $r->tecnico->tipo_documento,
                 'cedula' => $r->tecnico->cedula,
-                'documento_completo' => $r->tecnico->documento_completo, // ej. "V-12345678"
-                'foto_url' => $r->tecnico->foto_perfil_url, // accessor autenticado
+                'documento_completo' => $r->tecnico->documento_completo,
+                'foto_url' => $r->tecnico->foto_perfil_url,
             ] : null,
             'ubicacion' => [
                 'estado' => 'Táchira',
@@ -438,8 +431,7 @@ class ReporteController extends Controller
                 'parroquia' => $r->parroquia?->nombre,
                 'comuna' => $r->comuna?->nombre,
                 'consejo_comunal' => $r->consejoComunal?->nombre,
-                // BLOQUE 5: comunas y CCs adicionales con su jerarquía completa
-                // para que la vista muestre dónde están geográficamente.
+                // BLOQUE 5: comunas y CCs adicionales con jerarquía
                 'comunas_adicionales' => $r->comunasAdicionales->map(fn ($c) => [
                     'id' => $c->id,
                     'nombre' => $c->nombre,
@@ -461,24 +453,14 @@ class ReporteController extends Controller
                 'cantidad_personas_atendidas' => $r->cantidad_personas_atendidas,
                 'cantidad_personas_a_beneficiar' => $r->cantidad_personas_a_beneficiar,
             ],
+            // BLOQUE 8: actividad simplificada — solo tipo + descripción
             'actividad' => [
-                'titulo_actividad' => $r->titulo_actividad,
-                'nombre_cientifico_rubro' => $r->nombre_cientifico_rubro,
-                'ponencia_responsable' => $r->ponencia_responsable,
-                'material_apoyo' => $r->material_apoyo,
-                'organizado_por' => $r->organizado_por,
-                'aval_de' => $r->aval_de,
-                'certificacion' => $r->certificacion,
+                'tipo' => $r->tipo_actividad,
+                'descripcion' => $r->descripcion_actividad,
             ],
-            'impacto' => [
-                'participantes_acreditados' => $r->participantes_acreditados,
-                'alcance_grupo' => $r->alcance_grupo,
-                'resultado' => $r->resultado,
-            ],
-            'resumen_tematico' => $r->resumen_tematico,
             'fotos' => $r->fotos->map(fn ($f) => [
                 'id' => $f->id,
-                'url' => $f->url, // accessor autenticado
+                'url' => $f->url,
                 'nombre_original' => $f->nombre_original,
                 'orden' => $f->orden,
             ]),
