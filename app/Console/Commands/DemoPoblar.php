@@ -242,6 +242,9 @@ class DemoPoblar extends Command
                 'lugar' => $cc->nombre,
                 'cantidad_personas_atendidas' => $personasAtendidas,
                 'cantidad_personas_a_beneficiar' => $personasAtendidas + random_int(0, 30),
+                // BLOQUE 9: cantidades manuales totales (mínimo 1 — la principal)
+                'cantidad_comunas_atendidas' => random_int(1, 3),
+                'cantidad_consejos_comunales_atendidos' => random_int(1, 5),
                 'tipo_actividad' => $tiposActividad[array_rand($tiposActividad)],
                 // El marcador [DEMO] vive en descripcion_actividad para que DemoLimpiar
                 // pueda identificar estos registros sin violar Rule::in en tipo_actividad.
