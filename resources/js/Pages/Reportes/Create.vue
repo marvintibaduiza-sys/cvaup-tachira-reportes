@@ -7,9 +7,6 @@ import { Head, useForm } from '@inertiajs/vue3';
 defineProps({
     tecnicos: { type: Array, default: () => [] },
     municipios: { type: Array, default: () => [] },
-    // BLOQUE 5: catálogos completos para multi-selects
-    todasLasComunas: { type: Array, default: () => [] },
-    todosLosConsejosComunales: { type: Array, default: () => [] },
     tiposActividad: { type: Array, default: () => [] },
 });
 
@@ -23,12 +20,12 @@ const form = useForm({
     parroquia_id: null,
     comuna_id: null,
     consejo_comunal_id: null,
-    // BLOQUE 5: multi-select adicionales
-    comunas_adicionales_ids: [],
-    consejos_comunales_adicionales_ids: [],
     lugar: '',
     cantidad_personas_atendidas: null,
     cantidad_personas_a_beneficiar: null,
+    // BLOQUE 9: cantidades manuales (default 1 = solo el principal)
+    cantidad_comunas_atendidas: 1,
+    cantidad_consejos_comunales_atendidos: 1,
     // BLOQUE 8: actividad simplificada
     tipo_actividad: '',
     descripcion_actividad: '',
@@ -53,8 +50,6 @@ const submit = () => {
                     :form="form"
                     :tecnicos="tecnicos"
                     :municipios="municipios"
-                    :todas-las-comunas="todasLasComunas"
-                    :todos-los-consejos-comunales="todosLosConsejosComunales"
                     :tipos-actividad="tiposActividad"
                     @submit="submit"
                 />

@@ -8,9 +8,6 @@ const props = defineProps({
     reporte: { type: Object, required: true },
     tecnicos: { type: Array, default: () => [] },
     municipios: { type: Array, default: () => [] },
-    // BLOQUE 5: catálogos completos para multi-selects
-    todasLasComunas: { type: Array, default: () => [] },
-    todosLosConsejosComunales: { type: Array, default: () => [] },
     tiposActividad: { type: Array, default: () => [] },
 });
 
@@ -23,15 +20,12 @@ const form = useForm({
     parroquia_id: props.reporte.parroquia_id,
     comuna_id: props.reporte.comuna_id,
     consejo_comunal_id: props.reporte.consejo_comunal_id,
-    comunas_adicionales_ids: Array.isArray(props.reporte.comunas_adicionales_ids)
-        ? [...props.reporte.comunas_adicionales_ids]
-        : [],
-    consejos_comunales_adicionales_ids: Array.isArray(props.reporte.consejos_comunales_adicionales_ids)
-        ? [...props.reporte.consejos_comunales_adicionales_ids]
-        : [],
     lugar: props.reporte.lugar ?? '',
     cantidad_personas_atendidas: props.reporte.cantidad_personas_atendidas,
     cantidad_personas_a_beneficiar: props.reporte.cantidad_personas_a_beneficiar,
+    // BLOQUE 9: cantidades manuales (precargadas desde BD, fallback 1)
+    cantidad_comunas_atendidas: props.reporte.cantidad_comunas_atendidas ?? 1,
+    cantidad_consejos_comunales_atendidos: props.reporte.cantidad_consejos_comunales_atendidos ?? 1,
     // BLOQUE 8
     tipo_actividad: props.reporte.tipo_actividad ?? '',
     descripcion_actividad: props.reporte.descripcion_actividad ?? '',
@@ -56,8 +50,6 @@ const submit = () => {
                     :form="form"
                     :tecnicos="tecnicos"
                     :municipios="municipios"
-                    :todas-las-comunas="todasLasComunas"
-                    :todos-los-consejos-comunales="todosLosConsejosComunales"
                     :tipos-actividad="tiposActividad"
                     :fotos-existentes="reporte.fotos_existentes"
                     :is-edit="true"
