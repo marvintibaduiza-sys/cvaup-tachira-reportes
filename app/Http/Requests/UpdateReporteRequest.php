@@ -32,7 +32,6 @@ class UpdateReporteRequest extends FormRequest
             'comuna_id' => [...$reqIfFinal, 'integer', 'exists:comunas,id'],
             'consejo_comunal_id' => [...$reqIfFinal, 'integer', 'exists:consejos_comunales,id'],
 
-            // BLOQUE 5: comunas/CCs adicionales atendidos (multi-select).
             'comunas_adicionales_ids' => ['nullable', 'array', 'max:50'],
             'comunas_adicionales_ids.*' => ['integer', 'distinct', 'exists:comunas,id'],
             'consejos_comunales_adicionales_ids' => ['nullable', 'array', 'max:50'],
@@ -43,22 +42,9 @@ class UpdateReporteRequest extends FormRequest
             'cantidad_personas_atendidas' => ['nullable', 'integer', 'min:0'],
             'cantidad_personas_a_beneficiar' => ['nullable', 'integer', 'min:0'],
 
-            'titulo_actividad' => ['required', 'string', 'max:255'],
-            'nombre_cientifico_rubro' => ['nullable', 'string', 'max:255'],
-            'fecha_ejecucion' => ['required', 'date'],
-            'ponencia_responsable' => ['nullable', 'string', 'max:255'],
-            // Campos TEXT acotados (post-auditoría MEDIUM #4)
-            'material_apoyo' => ['nullable', 'string', 'max:5000'],
-            'organizado_por' => ['nullable', 'string', 'max:255'],
-            'aval_de' => ['nullable', 'string', 'max:255'],
-            'certificacion' => ['nullable', 'string', 'max:5000'],
+            'tipo_actividad' => [...$reqIfFinal, 'string', Rule::in(\App\Models\Reporte::TIPOS_ACTIVIDAD)],
+            'descripcion_actividad' => [...$reqIfFinal, 'string', 'max:5000'],
 
-            'participantes_acreditados' => ['nullable', 'integer', 'min:0'],
-            'alcance_grupo' => ['nullable', 'integer', 'min:0'],
-            'resultado' => ['nullable', 'string', 'max:5000'],
-            'resumen_tematico' => ['nullable', 'string', 'max:10000'],
-
-            // Fotos: nuevas a agregar + IDs a eliminar
             'fotos' => ['nullable', 'array'],
             'fotos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'fotos_eliminar' => ['nullable', 'array'],
@@ -82,8 +68,8 @@ class UpdateReporteRequest extends FormRequest
             'parroquia_id' => 'parroquia',
             'comuna_id' => 'comuna',
             'consejo_comunal_id' => 'consejo comunal',
-            'titulo_actividad' => 'título de la actividad',
-            'fecha_ejecucion' => 'fecha de ejecución',
+            'tipo_actividad' => 'tipo de actividad',
+            'descripcion_actividad' => 'descripción de la actividad',
         ];
     }
 

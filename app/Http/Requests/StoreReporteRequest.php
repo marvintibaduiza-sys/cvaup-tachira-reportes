@@ -19,8 +19,6 @@ class StoreReporteRequest extends FormRequest
     public function rules(): array
     {
         $esBorrador = (bool) $this->boolean('guardar_como_borrador');
-
-        // Si es borrador, solo se requiere lo MÍNIMO. Si es reporte normal, se exige más.
         $reqIfFinal = $esBorrador ? ['nullable'] : ['required'];
 
         return [
@@ -35,10 +33,7 @@ class StoreReporteRequest extends FormRequest
             'comuna_id' => [...$reqIfFinal, 'integer', 'exists:comunas,id'],
             'consejo_comunal_id' => [...$reqIfFinal, 'integer', 'exists:consejos_comunales,id'],
 
-            // BLOQUE 5: comunas/CCs ADICIONALES atendidos en la misma jornada.
-            // Pueden ser de cualquier municipio/parroquia (caso real: actividad especial).
-            // El sistema calcula automáticamente la cantidad total: 1 (principal) + count(adicionales).
-            // Tope de 50 para evitar abuso (ningún técnico atiende más en un día razonable).
+            // BLOQUE 5: comunas y CCs adicionales (multi-select)
             'comunas_adicionales_ids' => ['nullable', 'array', 'max:50'],
             'comunas_adicionales_ids.*' => ['integer', 'distinct', 'exists:comunas,id'],
             'consejos_comunales_adicionales_ids' => ['nullable', 'array', 'max:50'],
@@ -46,30 +41,15 @@ class StoreReporteRequest extends FormRequest
 
             'lugar' => ['nullable', 'string', 'max:255'],
 
-            // Atención
+            // Personas atendidas
             'cantidad_personas_atendidas' => ['nullable', 'integer', 'min:0'],
             'cantidad_personas_a_beneficiar' => ['nullable', 'integer', 'min:0'],
 
-            // Descripción de la actividad
-            'titulo_actividad' => ['required', 'string', 'max:255'],
-            'nombre_cientifico_rubro' => ['nullable', 'string', 'max:255'],
-            'fecha_ejecucion' => ['required', 'date'],
-            'ponencia_responsable' => ['nullable', 'string', 'max:255'],
-            // Campos TEXT acotados (post-auditoría MEDIUM #4): evita DoS por payload gigante.
-            'material_apoyo' => ['nullable', 'string', 'max:5000'],
-            'organizado_por' => ['nullable', 'string', 'max:255'],
-            'aval_de' => ['nullable', 'string', 'max:255'],
-            'certificacion' => ['nullable', 'string', 'max:5000'],
+            // BLOQUE 8: descripción simplificada de la actividad
+            'tipo_actividad' => [...$reqIfFinal, 'string', Rule::in(\App\Models\Reporte::TIPOS_ACTIVIDAD)],
+            'descripcion_actividad' => [...$reqIfFinal, 'string', 'max:5000'],
 
-            // Impacto
-            'participantes_acreditados' => ['nullable', 'integer', 'min:0'],
-            'alcance_grupo' => ['nullable', 'integer', 'min:0'],
-            'resultado' => ['nullable', 'string', 'max:5000'],
-
-            // Resumen (más permisivo: el técnico explica narrativamente)
-            'resumen_tematico' => ['nullable', 'string', 'max:10000'],
-
-            // Fotos (max 3)
+            // Fotos (constancia fotográfica)
             'fotos' => ['nullable', 'array', 'max:3'],
             'fotos.*' => ['image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ];
@@ -92,13 +72,10 @@ class StoreReporteRequest extends FormRequest
             'parroquia_id' => 'parroquia',
             'comuna_id' => 'comuna',
             'consejo_comunal_id' => 'consejo comunal',
-            'titulo_actividad' => 'título de la actividad',
-            'fecha_ejecucion' => 'fecha de ejecución',
+            'tipo_actividad' => 'tipo de actividad',
+            'descripcion_actividad' => 'descripción de la actividad',
             'cantidad_personas_atendidas' => 'cantidad de personas atendidas',
             'cantidad_personas_a_beneficiar' => 'cantidad de personas a beneficiar',
-            'participantes_acreditados' => 'participantes acreditados',
-            'alcance_grupo' => 'alcance del grupo',
-            'resumen_tematico' => 'resumen temático',
         ];
     }
 
