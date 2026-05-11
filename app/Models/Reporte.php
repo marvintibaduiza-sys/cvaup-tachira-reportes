@@ -25,18 +25,8 @@ use Illuminate\Support\Carbon;
  * @property string|null $lugar
  * @property int|null $cantidad_personas_atendidas
  * @property int|null $cantidad_personas_a_beneficiar
- * @property string $titulo_actividad
- * @property string|null $nombre_cientifico_rubro
- * @property Carbon $fecha_ejecucion
- * @property string|null $ponencia_responsable
- * @property string|null $material_apoyo
- * @property string|null $organizado_por
- * @property string|null $aval_de
- * @property string|null $certificacion
- * @property int|null $participantes_acreditados
- * @property int|null $alcance_grupo
- * @property string|null $resultado
- * @property string|null $resumen_tematico
+ * @property string $tipo_actividad      Una de Reporte::TIPOS_ACTIVIDAD
+ * @property string $descripcion_actividad  Descripción libre de la actividad ejecutada
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -53,6 +43,19 @@ class Reporte extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * Tipos de actividad permitidos en `tipo_actividad`.
+     * Decisión del cliente (BLOQUE 8): dropdown corto en vez de texto libre — para que
+     * los listados y reportes ejecutivos puedan agrupar/filtrar por tipo.
+     */
+    public const TIPOS_ACTIVIDAD = [
+        'Capacitación',
+        'Asesoría técnica',
+        'Taller',
+        'Visita técnica',
+        'Otra',
+    ];
+
     protected $table = 'reportes';
 
     protected $fillable = [
@@ -60,21 +63,15 @@ class Reporte extends Model
         'municipio_id', 'parroquia_id', 'comuna_id', 'consejo_comunal_id',
         'cantidad_comunas_atendidas', 'cantidad_consejos_comunales_atendidos',
         'lugar', 'cantidad_personas_atendidas', 'cantidad_personas_a_beneficiar',
-        'titulo_actividad', 'nombre_cientifico_rubro', 'fecha_ejecucion',
-        'ponencia_responsable', 'material_apoyo', 'organizado_por', 'aval_de',
-        'certificacion', 'participantes_acreditados', 'alcance_grupo',
-        'resultado', 'resumen_tematico',
+        'tipo_actividad', 'descripcion_actividad',
     ];
 
     protected $casts = [
         'fecha' => 'date',
-        'fecha_ejecucion' => 'date',
         'cantidad_comunas_atendidas' => 'integer',
         'cantidad_consejos_comunales_atendidos' => 'integer',
         'cantidad_personas_atendidas' => 'integer',
         'cantidad_personas_a_beneficiar' => 'integer',
-        'participantes_acreditados' => 'integer',
-        'alcance_grupo' => 'integer',
     ];
 
     // ── Relaciones ──
@@ -207,11 +204,11 @@ class Reporte extends Model
     /**
      * Calcula el estado del reporte según los campos llenos.
      *
-     * Reglas (del chat de specs):
-     *  - completo: tecnico + fecha + ubicación completa (municipio→CC) +
-     *              titulo_actividad + fecha_ejecucion + al menos 1 foto
-     *  - incompleto: tiene datos pero falta algún campo requerido o foto
-     *  - borrador: recién creado, sin datos significativos
+     * Reglas (post BLOQUE 8 — simplificación):
+     *  - completo:   tecnico + fecha + ubicación completa (municipio→CC) +
+     *                tipo_actividad + descripcion_actividad + al menos 1 foto
+     *  - incompleto: tiene algunos datos pero falta algún campo requerido o foto
+     *  - borrador:   recién creado, sin datos significativos
      */
     public function calcularEstado(): string
     {
@@ -222,8 +219,8 @@ class Reporte extends Model
             $this->parroquia_id &&
             $this->comuna_id &&
             $this->consejo_comunal_id &&
-            $this->titulo_actividad &&
-            $this->fecha_ejecucion;
+            $this->tipo_actividad &&
+            $this->descripcion_actividad;
 
         $tieneFotos = $this->fotos()->count() > 0;
 
@@ -231,9 +228,7 @@ class Reporte extends Model
             return 'completo';
         }
 
-        // ¿Tiene al menos algunos datos? → incompleto. Si no → borrador.
-        $algunosDatos = $this->titulo_actividad || $this->fecha_ejecucion || $this->municipio_id;
-
+        $algunosDatos = $this->tipo_actividad || $this->descripcion_actividad || $this->municipio_id;
         return $algunosDatos ? 'incompleto' : 'borrador';
     }
 
