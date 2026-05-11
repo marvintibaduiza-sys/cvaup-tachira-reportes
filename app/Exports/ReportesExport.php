@@ -48,9 +48,11 @@ class ReportesExport implements
 {
     private const HEADER_ROW = 4;       // fila donde van los headers de columna
     private const FIRST_DATA_ROW = 5;   // primera fila de datos
-    // BLOQUE 6: 32 columnas (A=1..AF=32). Antes eran 28.
-    // Agregadas: Tipo doc, Especialidades, Otras comunas atendidas, Otros CCs atendidos.
-    private const LAST_COLUMN = 'AF';
+    // BLOQUE 8: 22 columnas (A=1..V=22). Antes eran 32.
+    // Eliminadas: titulo_actividad → renombrado, fecha_ejecucion, nombre_cientifico_rubro,
+    // ponencia_responsable, material_apoyo, organizado_por, aval_de, certificacion,
+    // participantes_acreditados, alcance_grupo, resultado, resumen_tematico (renombrado).
+    private const LAST_COLUMN = 'V';
 
     public function __construct(private readonly Collection $reportes)
     {
@@ -67,27 +69,21 @@ class ReportesExport implements
 
     public function collection(): Collection
     {
-        // ExcelSanitizer (E::clean) neutraliza CSV Formula Injection en TODOS los campos string.
-        // Números, fechas y enteros pasan tal cual (E::clean los detecta y no los toca).
         return $this->reportes->map(function ($r) {
-            // BLOQUE 4.5: especialidades es array → string para celda
             $especialidades = \is_array($r->tecnico?->especialidades)
                 ? implode(', ', $r->tecnico->especialidades)
                 : '';
 
-            // BLOQUE 5: comunas adicionales formateadas con su municipio para contexto.
-            // Formato: "Comuna A (Mun X), Comuna B (Mun Y)"
             $otrasComunas = $r->comunasAdicionales
-                ?->map(fn ($c) => sprintf(
+                ?->map(fn ($c) => \sprintf(
                     '%s (%s)',
                     $c->nombre,
                     $c->parroquia?->municipio?->nombre ?? '?'
                 ))
                 ->implode(', ') ?? '';
 
-            // BLOQUE 5: CCs adicionales con su comuna para contexto.
             $otrosCCs = $r->consejosComunalesAdicionales
-                ?->map(fn ($cc) => sprintf(
+                ?->map(fn ($cc) => \sprintf(
                     '%s (%s)',
                     $cc->nombre,
                     $cc->comuna?->nombre ?? '?'
@@ -98,37 +94,29 @@ class ReportesExport implements
                 $r->id,
                 $r->fecha?->format('Y-m-d'),
                 E::clean($r->estado_reporte),
-                // ── BLOQUE 4 + 4.5: técnico con datos completos ──
+                // Tecnico
                 E::clean($r->tecnico?->nombre_apellido),
                 E::clean($r->tecnico?->tipo_documento),
                 E::clean($r->tecnico?->cedula),
                 E::clean($especialidades),
-                // ── Ubicación principal ──
+                // Ubicacion principal
                 E::clean($r->municipio?->nombre),
                 E::clean($r->parroquia?->nombre),
                 E::clean($r->comuna?->nombre),
                 E::clean($r->consejoComunal?->nombre),
-                // ── BLOQUE 5: cantidades calculadas + listas adicionales ──
+                // BLOQUE 5: adicionales
                 $r->cantidad_comunas_atendidas,
                 E::clean($otrasComunas),
                 $r->cantidad_consejos_comunales_atendidos,
                 E::clean($otrosCCs),
-                // ── Resto ──
                 E::clean($r->lugar),
+                // Personas
                 $r->cantidad_personas_atendidas,
                 $r->cantidad_personas_a_beneficiar,
-                E::clean($r->titulo_actividad),
-                E::clean($r->nombre_cientifico_rubro),
-                $r->fecha_ejecucion?->format('Y-m-d'),
-                E::clean($r->ponencia_responsable),
-                E::clean($r->material_apoyo),
-                E::clean($r->organizado_por),
-                E::clean($r->aval_de),
-                E::clean($r->certificacion),
-                E::clean($r->participantes_acreditados),
-                E::clean($r->alcance_grupo),
-                E::clean($r->resultado),
-                E::clean($r->resumen_tematico),
+                // BLOQUE 8: actividad simplificada
+                E::clean($r->tipo_actividad),
+                E::clean($r->descripcion_actividad),
+                // Meta
                 $r->fotos->count(),
                 $r->created_at?->format('Y-m-d H:i:s'),
             ];
@@ -139,19 +127,20 @@ class ReportesExport implements
     {
         return [
             'ID', 'Fecha', 'Estado del reporte',
-            // BLOQUE 4 + 4.5: identidad del técnico expandida
+            // Técnico
             'Técnico', 'Tipo doc.', 'Cédula', 'Especialidades',
-            // Ubicación principal (sede del reporte)
+            // Ubicación principal
             'Municipio', 'Parroquia', 'Comuna', 'Consejo Comunal',
-            // BLOQUE 5: cantidades calculadas + listas concatenadas de adicionales
+            // BLOQUE 5: cantidades + adicionales
             'Total comunas atendidas', 'Otras comunas atendidas',
             'Total consejos atendidos', 'Otros consejos comunales atendidos',
             'Lugar',
-            'Personas atendidas', 'Personas a beneficiar', 'Título actividad',
-            'Nombre científico rubro', 'Fecha ejecución', 'Ponencia / Responsable',
-            'Material de apoyo', 'Organizado por', 'Aval de', 'Certificación',
-            'Participantes acreditados', 'Alcance grupo', 'Resultado',
-            'Resumen temático', 'Cantidad de fotos', 'Fecha creación',
+            // Personas
+            'Personas atendidas', 'Personas a beneficiar',
+            // BLOQUE 8: actividad
+            'Tipo de actividad', 'Descripción de la actividad',
+            // Meta
+            'Cantidad de fotos', 'Fecha creación',
         ];
     }
 

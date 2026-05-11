@@ -397,7 +397,7 @@
                     <th style="width: 18%;">Técnico</th>
                     <th style="width: 14%;">Municipio</th>
                     <th style="width: 16%;">Consejo Comunal</th>
-                    <th style="width: 24%;">Actividad</th>
+                    <th style="width: 24%;">Tipo de actividad</th>
                     <th style="width: 8%;" class="num">Atendidas</th>
                     <th style="width: 4%;" class="num">Fotos</th>
                     <th style="width: 8%;" class="num">Estado</th>
@@ -437,7 +437,7 @@
                                 </div>
                             @endif
                         </td>
-                        <td>{{ $r->titulo_actividad }}</td>
+                        <td>{{ $r->tipo_actividad ?? '—' }}</td>
                         <td class="num">{{ $r->cantidad_personas_atendidas ?? '—' }}</td>
                         <td class="num">{{ $r->fotos->count() }}</td>
                         <td class="num"><span class="badge {{ $estadoClase }}">{{ ucfirst($r->estado_reporte) }}</span></td>

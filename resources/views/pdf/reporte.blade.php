@@ -229,12 +229,9 @@
         </table>
     </div>
 
-    <div class="titulo">{{ $reporte->titulo_actividad }}</div>
+    <div class="titulo">{{ $reporte->tipo_actividad ?: 'Reporte' }}</div>
     <div class="meta">
-        Fecha de ejecución: <strong>{{ $reporte->fecha_ejecucion?->format('d/m/Y') ?? '—' }}</strong>
-        @if ($reporte->organizado_por)
-            · Organizado por: <strong>{{ $reporte->organizado_por }}</strong>
-        @endif
+        Fecha del reporte: <strong>{{ $reporte->fecha?->format('d/m/Y') ?? '—' }}</strong>
     </div>
 
     {{-- Técnico responsable — BLOQUE 4 + 4.5: estructura institucional completa --}}
@@ -337,65 +334,20 @@
         </table>
     </div>
 
-    {{-- Detalles de la actividad --}}
+    {{-- Actividad realizada — BLOQUE 8 simplificación --}}
     <div class="section">
-        <h2>Detalles de la actividad</h2>
+        <h2>Actividad realizada</h2>
         <table class="data-grid">
             <tr>
-                <td class="label">Nombre científico del rubro</td>
-                <td class="value">{{ $reporte->nombre_cientifico_rubro ?: '—' }}</td>
+                <td class="label">Tipo de actividad</td>
+                <td class="value">{{ $reporte->tipo_actividad ?: '—' }}</td>
             </tr>
             <tr>
-                <td class="label">Ponencia / Responsable</td>
-                <td class="value">{{ $reporte->ponencia_responsable ?: '—' }}</td>
+                <td class="label">Descripción</td>
+                <td class="value">{{ $reporte->descripcion_actividad ?: '—' }}</td>
             </tr>
-            <tr>
-                <td class="label">Aval de</td>
-                <td class="value">{{ $reporte->aval_de ?: '—' }}</td>
-            </tr>
-            @if ($reporte->material_apoyo)
-            <tr>
-                <td class="label">Material de apoyo</td>
-                <td class="value">{{ $reporte->material_apoyo }}</td>
-            </tr>
-            @endif
-            @if ($reporte->certificacion)
-            <tr>
-                <td class="label">Certificación</td>
-                <td class="value">{{ $reporte->certificacion }}</td>
-            </tr>
-            @endif
         </table>
     </div>
-
-    {{-- Impacto --}}
-    <div class="section">
-        <h2>Impacto y participación</h2>
-        <table class="data-grid">
-            <tr>
-                <td class="label">Participantes acreditados</td>
-                <td class="value">{{ $reporte->participantes_acreditados ?? '—' }}</td>
-            </tr>
-            <tr>
-                <td class="label">Alcance del grupo</td>
-                <td class="value">{{ $reporte->alcance_grupo ?? '—' }}</td>
-            </tr>
-            @if ($reporte->resultado)
-            <tr>
-                <td class="label">Resultado</td>
-                <td class="value">{{ $reporte->resultado }}</td>
-            </tr>
-            @endif
-        </table>
-    </div>
-
-    {{-- Resumen temático --}}
-    @if ($reporte->resumen_tematico)
-    <div class="section">
-        <h2>Resumen temático</h2>
-        <div class="resumen">{{ $reporte->resumen_tematico }}</div>
-    </div>
-    @endif
 
     {{-- Constancia fotográfica --}}
     @if ($reporte->fotos->count() > 0)
