@@ -159,12 +159,6 @@ class ExportarController extends Controller
                 'comuna:id,nombre',
                 'consejoComunal:id,nombre',
                 'fotos:id,reporte_id',
-                // BLOQUE 5: pivotes con jerarquía para mostrar contexto en exports
-                'comunasAdicionales:id,nombre,parroquia_id',
-                'comunasAdicionales.parroquia:id,nombre,municipio_id',
-                'comunasAdicionales.parroquia.municipio:id,nombre',
-                'consejosComunalesAdicionales:id,nombre,comuna_id',
-                'consejosComunalesAdicionales.comuna:id,nombre',
             ]);
         }
 

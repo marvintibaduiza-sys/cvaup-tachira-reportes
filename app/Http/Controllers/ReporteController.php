@@ -127,10 +127,6 @@ class ReporteController extends Controller
                     'documento_completo' => $t->documento_completo,
                 ]),
             'municipios' => Municipio::orderBy('nombre')->get(['id', 'nombre']),
-            // BLOQUE 5: catálogos completos para los multi-selects de adicionales.
-            // Pueden ser de CUALQUIER municipio/parroquia, así que cargamos todo.
-            'todasLasComunas' => $this->todasLasComunasParaMultiselect(),
-            'todosLosConsejosComunales' => $this->todosLosCCsParaMultiselect(),
             // BLOQUE 8: catálogo de tipos para alimentar el dropdown del form
             'tipos_actividad' => \App\Models\Reporte::TIPOS_ACTIVIDAD,
         ]);
@@ -141,28 +137,13 @@ class ReporteController extends Controller
         $data = $request->validated();
         $esBorrador = (bool) ($data['guardar_como_borrador'] ?? false);
 
-        // BLOQUE 5: extraemos los IDs adicionales antes de crear el modelo
-        // (no son columnas, son pivotes — se manejan via sync()).
-        $comunasAdicionales = $data['comunas_adicionales_ids'] ?? [];
-        $ccsAdicionales = $data['consejos_comunales_adicionales_ids'] ?? [];
-
         unset(
             $data['guardar_como_borrador'],
             $data['fotos'],
-            $data['comunas_adicionales_ids'],
-            $data['consejos_comunales_adicionales_ids'],
-            // Las cantidades se calculan automáticamente desde los pivotes — ignoramos lo que mande el cliente.
-            $data['cantidad_comunas_atendidas'],
-            $data['cantidad_consejos_comunales_atendidos'],
         );
 
-        $reporte = DB::transaction(function () use ($data, $request, $esBorrador, $comunasAdicionales, $ccsAdicionales) {
+        $reporte = DB::transaction(function () use ($data, $request, $esBorrador) {
             $reporte = Reporte::create($data);
-
-            // BLOQUE 5: sync de los pivotes y recalculo de cantidades cacheadas.
-            $reporte->comunasAdicionales()->sync($comunasAdicionales);
-            $reporte->consejosComunalesAdicionales()->sync($ccsAdicionales);
-            $reporte->recalcularCantidadesYGuardar();
 
             if ($request->hasFile('fotos')) {
                 $orden = 1;
@@ -205,14 +186,6 @@ class ReporteController extends Controller
             'comuna:id,nombre,parroquia_id',
             'consejoComunal:id,nombre,comuna_id',
             'fotos',
-            // BLOQUE 5: pivotes con jerarquía denormalizada para mostrar contexto.
-            'comunasAdicionales:id,nombre,parroquia_id',
-            'comunasAdicionales.parroquia:id,nombre,municipio_id',
-            'comunasAdicionales.parroquia.municipio:id,nombre',
-            'consejosComunalesAdicionales:id,nombre,comuna_id',
-            'consejosComunalesAdicionales.comuna:id,nombre,parroquia_id',
-            'consejosComunalesAdicionales.comuna.parroquia:id,nombre,municipio_id',
-            'consejosComunalesAdicionales.comuna.parroquia.municipio:id,nombre',
         ]);
 
         return Inertia::render('Reportes/Show', [
@@ -224,9 +197,6 @@ class ReporteController extends Controller
     {
         $reporte->load([
             'fotos:id,reporte_id,ruta,nombre_original,orden',
-            // BLOQUE 5: cargamos solo los IDs de los pivotes (todos los datos vienen del catálogo)
-            'comunasAdicionales:id',
-            'consejosComunalesAdicionales:id',
         ]);
 
         return Inertia::render('Reportes/Edit', [
@@ -241,9 +211,6 @@ class ReporteController extends Controller
                 'consejo_comunal_id' => $reporte->consejo_comunal_id,
                 'cantidad_comunas_atendidas' => $reporte->cantidad_comunas_atendidas,
                 'cantidad_consejos_comunales_atendidos' => $reporte->cantidad_consejos_comunales_atendidos,
-                // BLOQUE 5: IDs adicionales para preseleccionar
-                'comunas_adicionales_ids' => $reporte->comunasAdicionales->pluck('id')->all(),
-                'consejos_comunales_adicionales_ids' => $reporte->consejosComunalesAdicionales->pluck('id')->all(),
                 'lugar' => $reporte->lugar,
                 'cantidad_personas_atendidas' => $reporte->cantidad_personas_atendidas,
                 'cantidad_personas_a_beneficiar' => $reporte->cantidad_personas_a_beneficiar,
@@ -267,9 +234,6 @@ class ReporteController extends Controller
                     'documento_completo' => $t->documento_completo,
                 ]),
             'municipios' => Municipio::orderBy('nombre')->get(['id', 'nombre']),
-            // BLOQUE 5: catálogos completos para los multi-selects
-            'todasLasComunas' => $this->todasLasComunasParaMultiselect(),
-            'todosLosConsejosComunales' => $this->todosLosCCsParaMultiselect(),
             // BLOQUE 8: catálogo de tipos para alimentar el dropdown del form
             'tipos_actividad' => \App\Models\Reporte::TIPOS_ACTIVIDAD,
         ]);
@@ -281,27 +245,14 @@ class ReporteController extends Controller
         $esBorrador = (bool) ($data['guardar_como_borrador'] ?? false);
         $fotosEliminar = $data['fotos_eliminar'] ?? [];
 
-        // BLOQUE 5: extraemos los IDs adicionales antes de update() (son pivotes).
-        $comunasAdicionales = $data['comunas_adicionales_ids'] ?? [];
-        $ccsAdicionales = $data['consejos_comunales_adicionales_ids'] ?? [];
-
         unset(
             $data['guardar_como_borrador'],
             $data['fotos'],
             $data['fotos_eliminar'],
-            $data['comunas_adicionales_ids'],
-            $data['consejos_comunales_adicionales_ids'],
-            $data['cantidad_comunas_atendidas'],
-            $data['cantidad_consejos_comunales_atendidos'],
         );
 
-        DB::transaction(function () use ($data, $request, $reporte, $esBorrador, $fotosEliminar, $comunasAdicionales, $ccsAdicionales) {
+        DB::transaction(function () use ($data, $request, $reporte, $esBorrador, $fotosEliminar) {
             $reporte->update($data);
-
-            // BLOQUE 5: sync de pivotes — sync() reemplaza la lista completa
-            // (agrega los nuevos, quita los desmarcados).
-            $reporte->comunasAdicionales()->sync($comunasAdicionales);
-            $reporte->consejosComunalesAdicionales()->sync($ccsAdicionales);
 
             // Eliminar fotos marcadas
             if (!empty($fotosEliminar)) {
@@ -342,10 +293,6 @@ class ReporteController extends Controller
 
             $reporte->refresh();
 
-            // BLOQUE 5: recalcular cantidades cacheadas desde los pivotes
-            $reporte->cantidad_comunas_atendidas = $reporte->calcularCantidadComunasAtendidas();
-            $reporte->cantidad_consejos_comunales_atendidos = $reporte->calcularCantidadConsejosComunalesAtendidos();
-
             $reporte->estado_reporte = $esBorrador ? 'borrador' : $reporte->calcularEstado();
             $reporte->save();
         });
@@ -382,12 +329,6 @@ class ReporteController extends Controller
             'comuna:id,nombre',
             'consejoComunal:id,nombre',
             'fotos' => fn ($q) => $q->orderBy('orden'),
-            // BLOQUE 5: pivotes con jerarquía denormalizada para mostrar contexto en el PDF
-            'comunasAdicionales:id,nombre,parroquia_id',
-            'comunasAdicionales.parroquia:id,nombre,municipio_id',
-            'comunasAdicionales.parroquia.municipio:id,nombre',
-            'consejosComunalesAdicionales:id,nombre,comuna_id',
-            'consejosComunalesAdicionales.comuna:id,nombre',
         ]);
 
         // Adjuntar absolute_path a cada foto (resuelto desde el disk privado fotos_privadas).
@@ -431,20 +372,6 @@ class ReporteController extends Controller
                 'parroquia' => $r->parroquia?->nombre,
                 'comuna' => $r->comuna?->nombre,
                 'consejo_comunal' => $r->consejoComunal?->nombre,
-                // BLOQUE 5: comunas y CCs adicionales con jerarquía
-                'comunas_adicionales' => $r->comunasAdicionales->map(fn ($c) => [
-                    'id' => $c->id,
-                    'nombre' => $c->nombre,
-                    'parroquia' => $c->parroquia?->nombre,
-                    'municipio' => $c->parroquia?->municipio?->nombre,
-                ]),
-                'consejos_comunales_adicionales' => $r->consejosComunalesAdicionales->map(fn ($cc) => [
-                    'id' => $cc->id,
-                    'nombre' => $cc->nombre,
-                    'comuna' => $cc->comuna?->nombre,
-                    'parroquia' => $cc->comuna?->parroquia?->nombre,
-                    'municipio' => $cc->comuna?->parroquia?->municipio?->nombre,
-                ]),
             ],
             'metricas' => [
                 'cantidad_comunas_atendidas' => $r->cantidad_comunas_atendidas,
@@ -467,65 +394,5 @@ class ReporteController extends Controller
             'created_at' => $r->created_at?->format('d/m/Y H:i'),
             'updated_at' => $r->updated_at?->format('d/m/Y H:i'),
         ];
-    }
-
-    /**
-     * BLOQUE 5: Catálogo completo de comunas con su jerarquía (parroquia + municipio)
-     * para alimentar el multi-select de "otras comunas atendidas".
-     *
-     * El label se enriquece con el municipio para evitar ambigüedad: dos parroquias
-     * en distintos municipios pueden tener una comuna con el mismo nombre.
-     * Formato: "Comuna X — Parroquia Y (Municipio Z)"
-     */
-    private function todasLasComunasParaMultiselect(): array
-    {
-        return \App\Models\Comuna::with(['parroquia:id,nombre,municipio_id', 'parroquia.municipio:id,nombre'])
-            ->orderBy('nombre')
-            ->get(['id', 'nombre', 'parroquia_id'])
-            ->map(fn ($c) => [
-                'id' => $c->id,
-                'nombre' => $c->nombre,
-                'parroquia' => $c->parroquia?->nombre,
-                'municipio' => $c->parroquia?->municipio?->nombre,
-                // Label compuesto que el frontend usa para mostrar y buscar
-                'label' => \sprintf(
-                    '%s — %s (%s)',
-                    $c->nombre,
-                    $c->parroquia?->nombre ?? '?',
-                    $c->parroquia?->municipio?->nombre ?? '?'
-                ),
-            ])
-            ->all();
-    }
-
-    /**
-     * BLOQUE 5: Catálogo completo de consejos comunales con jerarquía completa.
-     * Mismo razonamiento que las comunas — el label compuesto evita ambigüedad
-     * cuando hay CCs con nombres similares en distintas parroquias.
-     */
-    private function todosLosCCsParaMultiselect(): array
-    {
-        return \App\Models\ConsejoComunal::with([
-                'comuna:id,nombre,parroquia_id',
-                'comuna.parroquia:id,nombre,municipio_id',
-                'comuna.parroquia.municipio:id,nombre',
-            ])
-            ->orderBy('nombre')
-            ->get(['id', 'nombre', 'comuna_id'])
-            ->map(fn ($cc) => [
-                'id' => $cc->id,
-                'nombre' => $cc->nombre,
-                'comuna' => $cc->comuna?->nombre,
-                'parroquia' => $cc->comuna?->parroquia?->nombre,
-                'municipio' => $cc->comuna?->parroquia?->municipio?->nombre,
-                'label' => \sprintf(
-                    '%s — %s, %s (%s)',
-                    $cc->nombre,
-                    $cc->comuna?->nombre ?? '?',
-                    $cc->comuna?->parroquia?->nombre ?? '?',
-                    $cc->comuna?->parroquia?->municipio?->nombre ?? '?'
-                ),
-            ])
-            ->all();
     }
 }
