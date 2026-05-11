@@ -36,7 +36,7 @@ const downloadPdf = () => {
 </script>
 
 <template>
-    <Head :title="`Reporte #${reporte.id} — ${reporte.actividad.titulo_actividad}`" />
+    <Head :title="`Reporte #${reporte.id} — ${reporte.actividad.tipo || 'Reporte'}`" />
 
     <AuthenticatedLayout :title="`Reporte #${reporte.id}`">
         <div class="max-w-5xl mx-auto space-y-6">
@@ -45,7 +45,7 @@ const downloadPdf = () => {
                 <div class="flex items-start justify-between flex-wrap gap-4">
                     <div class="min-w-0 flex-1">
                         <h2 class="text-xl font-bold text-slate-800 mb-2">
-                            {{ reporte.actividad.titulo_actividad }}
+                            {{ reporte.actividad.tipo || 'Reporte' }}
                         </h2>
                         <div class="flex items-center gap-3 flex-wrap text-sm text-slate-600">
                             <span class="inline-flex items-center gap-1.5">
@@ -205,61 +205,24 @@ const downloadPdf = () => {
                 </div>
             </Card>
 
-            <!-- Detalles de la actividad -->
-            <Card title="Detalles de la actividad">
-                <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            <!-- Actividad realizada — BLOQUE 8 simplificación -->
+            <Card title="Actividad realizada">
+                <div class="space-y-3">
                     <div>
-                        <dt class="text-xs uppercase tracking-wider text-slate-400">Nombre científico del rubro</dt>
-                        <dd class="text-slate-700 mt-0.5">{{ reporte.actividad.nombre_cientifico_rubro || '—' }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs uppercase tracking-wider text-slate-400">Fecha de ejecución</dt>
-                        <dd class="text-slate-700 mt-0.5">{{ reporte.fecha_ejecucion }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs uppercase tracking-wider text-slate-400">Ponencia / Responsable</dt>
-                        <dd class="text-slate-700 mt-0.5">{{ reporte.actividad.ponencia_responsable || '—' }}</dd>
+                        <div class="text-xs uppercase tracking-wider text-slate-400 mb-1">Tipo de actividad</div>
+                        <span
+                            class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-cvaup-primary/10 text-cvaup-primary border border-cvaup-primary/20"
+                        >
+                            {{ reporte.actividad.tipo || '—' }}
+                        </span>
                     </div>
                     <div>
-                        <dt class="text-xs uppercase tracking-wider text-slate-400">Organizado por</dt>
-                        <dd class="text-slate-700 mt-0.5">{{ reporte.actividad.organizado_por || '—' }}</dd>
-                    </div>
-                    <div>
-                        <dt class="text-xs uppercase tracking-wider text-slate-400">Aval de</dt>
-                        <dd class="text-slate-700 mt-0.5">{{ reporte.actividad.aval_de || '—' }}</dd>
-                    </div>
-                    <div class="md:col-span-2">
-                        <dt class="text-xs uppercase tracking-wider text-slate-400">Material de apoyo</dt>
-                        <dd class="text-slate-700 mt-0.5 whitespace-pre-line">{{ reporte.actividad.material_apoyo || '—' }}</dd>
-                    </div>
-                    <div class="md:col-span-2">
-                        <dt class="text-xs uppercase tracking-wider text-slate-400">Certificación</dt>
-                        <dd class="text-slate-700 mt-0.5 whitespace-pre-line">{{ reporte.actividad.certificacion || '—' }}</dd>
-                    </div>
-                </dl>
-            </Card>
-
-            <!-- Impacto -->
-            <Card title="Impacto y participación">
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <div class="text-xl font-bold text-slate-800 tabular-nums">{{ reporte.impacto.participantes_acreditados ?? '—' }}</div>
-                        <div class="text-xs text-slate-500 mt-1">Participantes acreditados</div>
-                    </div>
-                    <div>
-                        <div class="text-xl font-bold text-slate-800 tabular-nums">{{ reporte.impacto.alcance_grupo ?? '—' }}</div>
-                        <div class="text-xs text-slate-500 mt-1">Alcance del grupo</div>
+                        <div class="text-xs uppercase tracking-wider text-slate-400 mb-1">Descripción</div>
+                        <div class="text-sm text-slate-700 whitespace-pre-wrap">
+                            {{ reporte.actividad.descripcion || '—' }}
+                        </div>
                     </div>
                 </div>
-                <div v-if="reporte.impacto.resultado">
-                    <dt class="text-xs uppercase tracking-wider text-slate-400 mb-1">Resultado</dt>
-                    <dd class="text-sm text-slate-700 whitespace-pre-line">{{ reporte.impacto.resultado }}</dd>
-                </div>
-            </Card>
-
-            <!-- Resumen temático -->
-            <Card title="Resumen temático" v-if="reporte.resumen_tematico">
-                <p class="text-sm text-slate-700 whitespace-pre-line">{{ reporte.resumen_tematico }}</p>
             </Card>
 
             <!-- Galería con lightbox -->
@@ -293,7 +256,7 @@ const downloadPdf = () => {
         <ConfirmDialog
             :show="confirmDelete"
             title="Eliminar reporte"
-            :message="`¿Estás seguro de eliminar el reporte '${reporte.actividad.titulo_actividad}' del ${reporte.fecha}?`"
+            :message="`¿Estás seguro de eliminar el reporte de tipo '${reporte.actividad.tipo ?? '—'}' del ${reporte.fecha}?`"
             confirm-label="Sí, eliminar"
             variant="danger"
             @confirm="performDelete"

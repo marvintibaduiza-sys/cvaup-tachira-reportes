@@ -142,7 +142,7 @@ const inputClass = 'w-full px-3 py-2 text-sm border border-slate-300 rounded-md 
                             <th class="px-4 py-3 font-semibold">Fecha</th>
                             <th class="px-4 py-3 font-semibold">Técnico</th>
                             <th class="px-4 py-3 font-semibold">Ubicación</th>
-                            <th class="px-4 py-3 font-semibold">Actividad</th>
+                            <th class="px-4 py-3 font-semibold">Tipo de actividad</th>
                             <th class="px-4 py-3 font-semibold text-center">Personas</th>
                             <th class="px-4 py-3 font-semibold text-center">Estado</th>
                             <th class="px-4 py-3 font-semibold text-right">Acciones</th>
@@ -162,8 +162,14 @@ const inputClass = 'w-full px-3 py-2 text-sm border border-slate-300 rounded-md 
                                 <div v-if="r.consejo_comunal" class="text-[10px] text-slate-400 truncate max-w-[200px]">{{ r.consejo_comunal }}</div>
                             </td>
                             <td class="px-4 py-3 text-slate-700">
-                                <Link :href="`/reportes/${r.id}`" class="hover:text-cvaup-primary truncate block max-w-[260px]">
-                                    {{ r.titulo_actividad }}
+                                <Link :href="`/reportes/${r.id}`" class="hover:opacity-80 inline-block max-w-[260px]">
+                                    <span
+                                        v-if="r.tipo_actividad"
+                                        class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-cvaup-primary/10 text-cvaup-primary border border-cvaup-primary/20"
+                                    >
+                                        {{ r.tipo_actividad }}
+                                    </span>
+                                    <span v-else class="text-slate-400 text-xs">—</span>
                                 </Link>
                                 <div v-if="r.fotos_count > 0" class="text-[10px] text-slate-400 mt-1">
                                     <Icon name="image" :size="10" class="inline" /> {{ r.fotos_count }} foto(s)
@@ -212,7 +218,7 @@ const inputClass = 'w-full px-3 py-2 text-sm border border-slate-300 rounded-md 
         <ConfirmDialog
             :show="confirmDelete !== null"
             title="Eliminar reporte"
-            :message="`¿Estás seguro de eliminar el reporte '${confirmDelete?.titulo_actividad}' del ${confirmDelete?.fecha}?`"
+            :message="`¿Estás seguro de eliminar el reporte de tipo '${confirmDelete?.tipo_actividad ?? '—'}' del ${confirmDelete?.fecha}?`"
             confirm-label="Sí, eliminar"
             variant="danger"
             @confirm="performDelete"
