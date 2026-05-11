@@ -59,7 +59,7 @@ class DemoPoblar extends Command
         $this->line('   Entorno: ' . app()->environment());
         $this->line('   Técnicos a crear (si faltan): ' . $cantidadTecnicos);
         $this->line('   Reportes a crear: ' . $cantidadReportes);
-        $this->line('   Marcador: ' . self::MARCADOR . ' (en nombres y títulos)');
+        $this->line('   Marcador: ' . self::MARCADOR . ' (en nombres de técnicos y descripciones de reportes)');
         $this->newLine();
 
         // ── GUARD 2: confirmación interactiva (saltable con --force) ─────
@@ -183,24 +183,25 @@ class DemoPoblar extends Command
             $cursor->addDay();
         }
 
-        $titulosActividad = [
-            'Capacitación en huerto familiar',
-            'Asesoría técnica en cultivo de hortalizas',
-            'Seguimiento a producción comunal',
-            'Distribución de semillas',
-            'Taller de compostaje',
-            'Visita técnica de diagnóstico',
-            'Acompañamiento a productores',
-            'Inspección de cultivos',
+        // Tipos válidos según Reporte::TIPOS_ACTIVIDAD. NO se puede prefijar con [DEMO]
+        // porque la validación Rule::in lo rechazaría: el marcador va en descripcion_actividad.
+        $tiposActividad = [
+            'Capacitación',
+            'Asesoría técnica',
+            'Taller',
+            'Visita técnica',
+            'Otra',
         ];
 
-        $rubros = [
-            'Solanum lycopersicum (tomate)',
-            'Capsicum annuum (pimentón)',
-            'Lactuca sativa (lechuga)',
-            'Phaseolus vulgaris (caraota)',
-            'Zea mays (maíz)',
-            'Solanum tuberosum (papa)',
+        $descripcionesBase = [
+            'capacitación en huerto familiar',
+            'asesoría técnica en cultivo de hortalizas',
+            'seguimiento a producción comunal',
+            'distribución de semillas',
+            'taller de compostaje',
+            'visita técnica de diagnóstico',
+            'acompañamiento a productores',
+            'inspección de cultivos',
         ];
 
         $bar = $this->output->createProgressBar($cantidad);
@@ -241,9 +242,10 @@ class DemoPoblar extends Command
                 'lugar' => $cc->nombre,
                 'cantidad_personas_atendidas' => $personasAtendidas,
                 'cantidad_personas_a_beneficiar' => $personasAtendidas + random_int(0, 30),
-                'titulo_actividad' => self::MARCADOR . ' ' . $titulosActividad[array_rand($titulosActividad)],
-                'nombre_cientifico_rubro' => $rubros[array_rand($rubros)],
-                'fecha_ejecucion' => $fecha,
+                'tipo_actividad' => $tiposActividad[array_rand($tiposActividad)],
+                // El marcador [DEMO] vive en descripcion_actividad para que DemoLimpiar
+                // pueda identificar estos registros sin violar Rule::in en tipo_actividad.
+                'descripcion_actividad' => self::MARCADOR . ' ' . $descripcionesBase[array_rand($descripcionesBase)],
             ]);
 
             $creados++;

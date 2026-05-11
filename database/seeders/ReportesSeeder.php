@@ -2,10 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Comuna;
-use App\Models\ConsejoComunal;
 use App\Models\Municipio;
-use App\Models\Parroquia;
 use App\Models\Reporte;
 use App\Models\Tecnico;
 use Carbon\Carbon;
@@ -28,21 +25,30 @@ class ReportesSeeder extends Seeder
             return;
         }
 
-        $rubrosCientificos = ['Citrus sinensis', 'Lactuca sativa', 'Persea americana', 'Solanum lycopersicum', 'N/A'];
-        $titulos = [
-            'Taller de compostaje comunitario',
-            'Siembra de frutales en patios productivos',
-            'Diagnóstico de suelos para huertos urbanos',
-            'Capacitación en cultivo de hortalizas',
-            'Instalación de sistema de riego por goteo',
-            'Poda y mantenimiento de frutales',
-            'Elaboración de bioinsumos',
-            'Visita técnica a parcela demostrativa',
-            'Capacitación en manejo integrado de plagas',
-            'Seguimiento a patios productivos',
-            'Jornada de siembra agroecológica',
-            'Inspección de unidades productivas',
-            'Charla sobre seguridad alimentaria',
+        // Tipos válidos de actividad (deben coincidir con Reporte::TIPOS_ACTIVIDAD).
+        $tiposActividad = [
+            'Capacitación',
+            'Asesoría técnica',
+            'Taller',
+            'Visita técnica',
+            'Otra',
+        ];
+
+        // Descripciones temáticas reutilizables para el campo descripcion_actividad.
+        $descripcionesBase = [
+            'Taller de compostaje comunitario con énfasis en separación de residuos orgánicos y aprovechamiento agrícola.',
+            'Siembra de frutales en patios productivos, acompañamiento técnico en preparación del terreno y selección de especies.',
+            'Diagnóstico de suelos para huertos urbanos: muestreo, pH y recomendaciones de enmienda.',
+            'Capacitación en cultivo de hortalizas de ciclo corto bajo condiciones agroecológicas.',
+            'Instalación de sistema de riego por goteo en parcela demostrativa.',
+            'Poda y mantenimiento de frutales: técnicas de formación y sanidad vegetal.',
+            'Elaboración de bioinsumos (biofertilizantes y bioplaguicidas) con productores locales.',
+            'Visita técnica a parcela demostrativa para evaluación de avance del ciclo productivo.',
+            'Capacitación en manejo integrado de plagas con énfasis en control biológico.',
+            'Seguimiento a patios productivos: evaluación de producción y resolución de dudas técnicas.',
+            'Jornada de siembra agroecológica con participación comunitaria.',
+            'Inspección de unidades productivas y levantamiento de información para acompañamiento.',
+            'Charla sobre seguridad alimentaria y producción comunal sostenible.',
         ];
 
         $hoy = Carbon::today();
@@ -100,30 +106,19 @@ class ReportesSeeder extends Seeder
                 'parroquia_id' => $parroquia->id,
                 'comuna_id' => $comuna?->id,
                 'consejo_comunal_id' => $consejo?->id,
-                'titulo_actividad' => $titulos[array_rand($titulos)],
-                'fecha_ejecucion' => $fecha->toDateString(),
+                'tipo_actividad' => $tiposActividad[array_rand($tiposActividad)],
+                'descripcion_actividad' => $descripcionesBase[array_rand($descripcionesBase)],
             ];
 
             if ($estadoRandom !== 'borrador') {
                 $datos = array_merge($datos, [
                     'cantidad_personas_atendidas' => random_int(8, 40),
                     'cantidad_personas_a_beneficiar' => random_int(30, 150),
-                    'nombre_cientifico_rubro' => $rubrosCientificos[array_rand($rubrosCientificos)],
-                    'fecha_ejecucion' => $fecha->toDateString(),
-                    'ponencia_responsable' => 'Ing. ' . explode(' ', $tecnico->nombre_apellido)[0],
-                    'organizado_por' => 'CVAUP Táchira',
-                    'participantes_acreditados' => random_int(8, 30),
-                    'alcance_grupo' => random_int(30, 120),
                     'lugar' => 'Sector ' . ($consejo?->nombre ?? $comuna?->nombre ?? 'Centro'),
-                    'resultado' => 'Actividad ejecutada con la comunidad participante.',
-                    'resumen_tematico' => 'Se desarrollaron actividades de formación y acompañamiento técnico en el área agrícola.',
                 ]);
             }
 
             if ($estadoRandom === 'completo') {
-                $datos['material_apoyo'] = 'Folletos impresos, presentación digital';
-                $datos['aval_de'] = 'Ministerio de Agricultura Urbana';
-                $datos['certificacion'] = 'Constancia de participación emitida';
                 $datos['cantidad_comunas_atendidas'] = 1;
                 $datos['cantidad_consejos_comunales_atendidos'] = 1;
             }

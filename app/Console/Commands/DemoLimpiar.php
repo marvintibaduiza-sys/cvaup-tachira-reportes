@@ -13,9 +13,9 @@ use Illuminate\Support\Facades\DB;
  * Identifica los registros demo por la cédula con prefijo 9999 (DemoPoblar::CEDULA_PREFIX).
  * Tras BLOQUE 4 la columna nombre_apellido ya no existe — usar la cédula es además
  * más confiable porque no se puede editar accidentalmente desde la UI (UNIQUE constraint).
- * Borra todos los reportes asociados a esos técnicos (sin importar el prefijo del
- * título — defensa frente a reportes huérfanos creados manualmente sobre técnicos
- * demo durante testing) y luego force-elimina los técnicos.
+ * Borra todos los reportes asociados a esos técnicos (sin importar el prefijo de
+ * la descripción — defensa frente a reportes huérfanos creados manualmente sobre
+ * técnicos demo durante testing) y luego force-elimina los técnicos.
  *
  * Mismas guardas que demo:poblar (no producción + confirmación).
  *
@@ -42,8 +42,8 @@ class DemoLimpiar extends Command
         // ── Identificación de qué se va a borrar ────────────────────────
         // Estrategia: identificar técnicos demo por la cédula con prefijo 9999.
         // Cualquier reporte asociado a un técnico demo se considera demo (incluso
-        // si por error no tiene el prefijo en su título — escenario común durante
-        // tests manuales).
+        // si por error no tiene el prefijo en su descripción — escenario común
+        // durante tests manuales).
         //
         // IMPORTANTE — SoftDeletes:
         //  Reporte usa SoftDeletes. Las queries Eloquent normales NO incluyen
@@ -58,7 +58,7 @@ class DemoLimpiar extends Command
             ->whereIn('tecnico_id', $tecnicosDemoIds)
             ->count();
         $reportesHuerfanosCount = Reporte::withTrashed()
-            ->where('titulo_actividad', 'LIKE', DemoPoblar::MARCADOR . '%')
+            ->where('descripcion_actividad', 'LIKE', DemoPoblar::MARCADOR . '%')
             ->whereNotIn('tecnico_id', $tecnicosDemoIds)
             ->count();
         $tecnicosDemoCount = $tecnicosDemoIds->count();
@@ -95,7 +95,7 @@ class DemoLimpiar extends Command
 
                 // PASO 1b: reportes [DEMO] bajo OTRO técnico (huérfanos).
                 $reportesHuerfanosBorrados = Reporte::withTrashed()
-                    ->where('titulo_actividad', 'LIKE', DemoPoblar::MARCADOR . '%')
+                    ->where('descripcion_actividad', 'LIKE', DemoPoblar::MARCADOR . '%')
                     ->whereNotIn('tecnico_id', $tecnicosDemoIds)
                     ->forceDelete();
 
