@@ -11,6 +11,7 @@ const props = defineProps({
     // BLOQUE 5: catálogos completos para multi-selects
     todasLasComunas: { type: Array, default: () => [] },
     todosLosConsejosComunales: { type: Array, default: () => [] },
+    tiposActividad: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -22,7 +23,6 @@ const form = useForm({
     parroquia_id: props.reporte.parroquia_id,
     comuna_id: props.reporte.comuna_id,
     consejo_comunal_id: props.reporte.consejo_comunal_id,
-    // BLOQUE 5: pivotes de adicionales (preselecccionados desde edit())
     comunas_adicionales_ids: Array.isArray(props.reporte.comunas_adicionales_ids)
         ? [...props.reporte.comunas_adicionales_ids]
         : [],
@@ -32,18 +32,9 @@ const form = useForm({
     lugar: props.reporte.lugar ?? '',
     cantidad_personas_atendidas: props.reporte.cantidad_personas_atendidas,
     cantidad_personas_a_beneficiar: props.reporte.cantidad_personas_a_beneficiar,
-    titulo_actividad: props.reporte.titulo_actividad ?? '',
-    nombre_cientifico_rubro: props.reporte.nombre_cientifico_rubro ?? '',
-    fecha_ejecucion: props.reporte.fecha_ejecucion,
-    ponencia_responsable: props.reporte.ponencia_responsable ?? '',
-    material_apoyo: props.reporte.material_apoyo ?? '',
-    organizado_por: props.reporte.organizado_por ?? '',
-    aval_de: props.reporte.aval_de ?? '',
-    certificacion: props.reporte.certificacion ?? '',
-    participantes_acreditados: props.reporte.participantes_acreditados,
-    alcance_grupo: props.reporte.alcance_grupo,
-    resultado: props.reporte.resultado ?? '',
-    resumen_tematico: props.reporte.resumen_tematico ?? '',
+    // BLOQUE 8
+    tipo_actividad: props.reporte.tipo_actividad ?? '',
+    descripcion_actividad: props.reporte.descripcion_actividad ?? '',
     fotos: [],
     fotos_eliminar: [],
 });
@@ -67,6 +58,7 @@ const submit = () => {
                     :municipios="municipios"
                     :todas-las-comunas="todasLasComunas"
                     :todos-los-consejos-comunales="todosLosConsejosComunales"
+                    :tipos-actividad="tiposActividad"
                     :fotos-existentes="reporte.fotos_existentes"
                     :is-edit="true"
                     :cancel-href="`/reportes/${reporte.id}`"

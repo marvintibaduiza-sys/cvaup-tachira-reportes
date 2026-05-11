@@ -10,6 +10,7 @@ defineProps({
     // BLOQUE 5: catálogos completos para multi-selects
     todasLasComunas: { type: Array, default: () => [] },
     todosLosConsejosComunales: { type: Array, default: () => [] },
+    tiposActividad: { type: Array, default: () => [] },
 });
 
 const today = new Date().toISOString().split('T')[0];
@@ -22,24 +23,15 @@ const form = useForm({
     parroquia_id: null,
     comuna_id: null,
     consejo_comunal_id: null,
-    // BLOQUE 5: pivotes de adicionales (system calcula cantidad automáticamente)
+    // BLOQUE 5: multi-select adicionales
     comunas_adicionales_ids: [],
     consejos_comunales_adicionales_ids: [],
     lugar: '',
     cantidad_personas_atendidas: null,
     cantidad_personas_a_beneficiar: null,
-    titulo_actividad: '',
-    nombre_cientifico_rubro: '',
-    fecha_ejecucion: today,
-    ponencia_responsable: '',
-    material_apoyo: '',
-    organizado_por: 'CVAUP Táchira',
-    aval_de: '',
-    certificacion: '',
-    participantes_acreditados: null,
-    alcance_grupo: null,
-    resultado: '',
-    resumen_tematico: '',
+    // BLOQUE 8: actividad simplificada
+    tipo_actividad: '',
+    descripcion_actividad: '',
     fotos: [],
     fotos_eliminar: [],
 });
@@ -63,6 +55,7 @@ const submit = () => {
                     :municipios="municipios"
                     :todas-las-comunas="todasLasComunas"
                     :todos-los-consejos-comunales="todosLosConsejosComunales"
+                    :tipos-actividad="tiposActividad"
                     @submit="submit"
                 />
             </Card>

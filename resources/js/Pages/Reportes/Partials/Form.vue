@@ -20,6 +20,7 @@ const props = defineProps({
     municipios: { type: Array, default: () => [] },
     todasLasComunas: { type: Array, default: () => [] },           // BLOQUE 5
     todosLosConsejosComunales: { type: Array, default: () => [] }, // BLOQUE 5
+    tiposActividad: { type: Array, default: () => [] }, // BLOQUE 8: ['Capacitación', 'Asesoría técnica', ...]
     fotosExistentes: { type: Array, default: () => [] }, // solo en edit
     isEdit: { type: Boolean, default: false },
     cancelHref: { type: String, default: '/reportes' },
@@ -196,82 +197,43 @@ const submitForm = (esBorrador = false) => {
             </div>
         </section>
 
-        <!-- ───── Sección 3: Descripción de la Actividad ───── -->
+        <!-- ───── Sección 3: Actividad — BLOQUE 8 simplificación ───── -->
         <section>
             <header class="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
                 <span class="w-7 h-7 rounded-full bg-cvaup-primary text-white flex items-center justify-center text-xs font-bold">3</span>
-                <h3 class="text-base font-semibold text-slate-800">Descripción de la Actividad</h3>
+                <h3 class="text-base font-semibold text-slate-800">Actividad realizada</h3>
             </header>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
-                <FormField label="Título de la actividad" required :error="form.errors.titulo_actividad" class="md:col-span-2">
-                    <input v-model="form.titulo_actividad" type="text" :class="inputClass" placeholder="Ej: Taller de compostaje comunitario" />
+            <div class="space-y-4">
+                <FormField label="Tipo de actividad" required :error="form.errors.tipo_actividad">
+                    <select v-model="form.tipo_actividad" :class="inputClass">
+                        <option value="" disabled>— Selecciona el tipo —</option>
+                        <option v-for="t in tiposActividad" :key="t" :value="t">
+                            {{ t }}
+                        </option>
+                    </select>
                 </FormField>
-                <FormField label="Nombre científico del rubro" :error="form.errors.nombre_cientifico_rubro">
-                    <input v-model="form.nombre_cientifico_rubro" type="text" :class="inputClass" placeholder="Ej: Citrus sinensis" />
-                </FormField>
-                <FormField label="Fecha de ejecución" required :error="form.errors.fecha_ejecucion">
-                    <input v-model="form.fecha_ejecucion" type="date" :class="inputClass" />
-                </FormField>
-                <FormField label="Ponencia / Responsable" :error="form.errors.ponencia_responsable" class="md:col-span-2">
-                    <input v-model="form.ponencia_responsable" type="text" :class="inputClass" placeholder="Ej: Ing. Carlos Mendoza" />
-                </FormField>
-                <FormField label="Material de apoyo" :error="form.errors.material_apoyo" class="md:col-span-2">
-                    <textarea v-model="form.material_apoyo" :class="textareaClass" placeholder="Ej: Presentación PowerPoint, folletos impresos"></textarea>
-                </FormField>
-                <FormField label="Organizado por" :error="form.errors.organizado_por">
-                    <input v-model="form.organizado_por" type="text" :class="inputClass" placeholder="Ej: CVAUP Táchira" />
-                </FormField>
-                <FormField label="Aval de" :error="form.errors.aval_de">
-                    <input v-model="form.aval_de" type="text" :class="inputClass" placeholder="Ej: Ministerio de Agricultura" />
-                </FormField>
-                <FormField label="Certificación" :error="form.errors.certificacion" class="md:col-span-2">
-                    <textarea v-model="form.certificacion" :class="textareaClass" placeholder="Detalles del certificado emitido"></textarea>
+
+                <FormField
+                    label="Descripción de la actividad"
+                    required
+                    :error="form.errors.descripcion_actividad"
+                    hint="Detalla qué se hizo, metodología y resultados clave."
+                >
+                    <textarea
+                        v-model="form.descripcion_actividad"
+                        :class="textareaClass"
+                        rows="5"
+                        placeholder="Ej: Capacitación sobre técnicas de compostaje familiar. Se mostró el proceso paso a paso con material orgánico de la comunidad..."
+                    ></textarea>
                 </FormField>
             </div>
         </section>
 
-        <!-- ───── Sección 4: Impacto y Participación ───── -->
+        <!-- ───── Sección 4: Constancia Fotográfica ───── -->
         <section>
             <header class="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
                 <span class="w-7 h-7 rounded-full bg-cvaup-primary text-white flex items-center justify-center text-xs font-bold">4</span>
-                <h3 class="text-base font-semibold text-slate-800">Impacto y Participación</h3>
-            </header>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
-                <FormField label="Participantes acreditados" :error="form.errors.participantes_acreditados">
-                    <input v-model.number="form.participantes_acreditados" type="number" min="0" :class="inputClass" placeholder="0" />
-                </FormField>
-                <FormField label="Alcance del grupo" :error="form.errors.alcance_grupo">
-                    <input v-model.number="form.alcance_grupo" type="number" min="0" :class="inputClass" placeholder="0" />
-                </FormField>
-                <FormField label="Resultado" :error="form.errors.resultado" class="md:col-span-2">
-                    <textarea v-model="form.resultado" :class="textareaClass" placeholder="Descripción del impacto logrado"></textarea>
-                </FormField>
-            </div>
-        </section>
-
-        <!-- ───── Sección 5: Resumen Temático ───── -->
-        <section>
-            <header class="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
-                <span class="w-7 h-7 rounded-full bg-cvaup-primary text-white flex items-center justify-center text-xs font-bold">5</span>
-                <h3 class="text-base font-semibold text-slate-800">Resumen Temático</h3>
-            </header>
-
-            <FormField :error="form.errors.resumen_tematico">
-                <textarea
-                    v-model="form.resumen_tematico"
-                    :class="textareaClass"
-                    rows="4"
-                    placeholder="Resume los temas tratados, metodología empleada y resultados alcanzados..."
-                ></textarea>
-            </FormField>
-        </section>
-
-        <!-- ───── Sección 6: Constancia Fotográfica ───── -->
-        <section>
-            <header class="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
-                <span class="w-7 h-7 rounded-full bg-cvaup-primary text-white flex items-center justify-center text-xs font-bold">6</span>
                 <h3 class="text-base font-semibold text-slate-800">Constancia Fotográfica</h3>
                 <span class="ml-2 text-xs text-slate-500">(opcional pero requerida para reporte completo)</span>
             </header>
