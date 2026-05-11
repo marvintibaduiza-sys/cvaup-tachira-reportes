@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -36,8 +35,6 @@ use Illuminate\Support\Carbon;
  * @property-read Comuna|null $comuna
  * @property-read ConsejoComunal|null $consejoComunal
  * @property-read Collection<int, FotoReporte> $fotos
- * @property-read Collection<int, Comuna> $comunasAdicionales  BLOQUE 5: pivote reporte_comuna_atendida
- * @property-read Collection<int, ConsejoComunal> $consejosComunalesAdicionales  BLOQUE 5: pivote reporte_consejo_comunal_atendido
  */
 class Reporte extends Model
 {
@@ -104,73 +101,6 @@ class Reporte extends Model
     public function fotos(): HasMany
     {
         return $this->hasMany(FotoReporte::class)->orderBy('orden');
-    }
-
-    /**
-     * BLOQUE 5: Comunas adicionales atendidas en la misma jornada.
-     *
-     * Pueden ser de CUALQUIER municipio (un técnico puede desplazarse a otro
-     * municipio para una actividad especial). El modelo no restringe — la UI
-     * y el FormRequest validan solo que existan en BD.
-     *
-     * NO incluye la comuna principal (`comuna_id`). Para obtener la lista
-     * COMPLETA (principal + adicionales), usar `getTodasLasComunasAtendidas()`.
-     */
-    public function comunasAdicionales(): BelongsToMany
-    {
-        return $this->belongsToMany(Comuna::class, 'reporte_comuna_atendida')
-            ->withTimestamps();
-    }
-
-    /**
-     * BLOQUE 5: Consejos comunales adicionales atendidos.
-     *
-     * Pueden ser de CUALQUIER parroquia (no solo la del CC principal).
-     */
-    public function consejosComunalesAdicionales(): BelongsToMany
-    {
-        return $this->belongsToMany(
-            ConsejoComunal::class,
-            'reporte_consejo_comunal_atendido',
-            'reporte_id',
-            'consejo_comunal_id'
-        )->withTimestamps();
-    }
-
-    /**
-     * Cantidad TOTAL de comunas atendidas en este reporte.
-     * = 1 (la principal, si existe) + adicionales del pivote.
-     *
-     * Si no hay comuna principal (raro), no contamos esa "1" — pero el FormRequest
-     * obliga a tener mínimo 1 comuna principal según las reglas de negocio.
-     */
-    public function calcularCantidadComunasAtendidas(): int
-    {
-        $principal = $this->comuna_id ? 1 : 0;
-        $adicionales = $this->comunasAdicionales()->count();
-        return $principal + $adicionales;
-    }
-
-    /**
-     * Cantidad TOTAL de consejos comunales atendidos.
-     * = 1 (el principal) + adicionales del pivote.
-     */
-    public function calcularCantidadConsejosComunalesAtendidos(): int
-    {
-        $principal = $this->consejo_comunal_id ? 1 : 0;
-        $adicionales = $this->consejosComunalesAdicionales()->count();
-        return $principal + $adicionales;
-    }
-
-    /**
-     * Recalcula y persiste las cantidades cacheadas. Llamar después de
-     * sync() de los pivotes desde el controller.
-     */
-    public function recalcularCantidadesYGuardar(): void
-    {
-        $this->cantidad_comunas_atendidas = $this->calcularCantidadComunasAtendidas();
-        $this->cantidad_consejos_comunales_atendidos = $this->calcularCantidadConsejosComunalesAtendidos();
-        $this->save();
     }
 
     // ── Scopes ──
