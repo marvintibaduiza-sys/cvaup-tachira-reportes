@@ -457,11 +457,7 @@
                     </td>
                     <td>
                         <div class="num">{{ number_format($estadisticas['total_personas_atendidas']) }}</div>
-                        <div class="lbl">Personas atendidas</div>
-                    </td>
-                    <td>
-                        <div class="num">{{ number_format($estadisticas['total_participantes_acreditados']) }}</div>
-                        <div class="lbl">Participantes acreditados</div>
+                        <div class="lbl">Total personas atendidas</div>
                     </td>
                     <td>
                         <div class="num">{{ number_format($estadisticas['total_personas_a_beneficiar']) }}</div>
@@ -490,9 +486,8 @@
                     'completos' => 'Reportes completos',
                     'incompletos' => 'Reportes incompletos',
                     'borradores' => 'Reportes borradores',
-                    'total_personas_atendidas' => 'Personas atendidas',
+                    'total_personas_atendidas' => 'Total personas atendidas',
                     'total_personas_a_beneficiar' => 'Personas a beneficiar',
-                    'total_participantes_acreditados' => 'Participantes acreditados',
                     'tecnicos_distintos' => 'Técnicos distintos',
                     'municipios_distintos' => 'Municipios distintos',
                 ];

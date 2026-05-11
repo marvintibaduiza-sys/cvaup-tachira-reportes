@@ -183,14 +183,16 @@ class TecnicoController extends Controller
                         'id' => $r->id,
                         // Formato institucional venezolano DD/MM/YYYY (ej: 06/05/2026)
                         'fecha' => $r->fecha?->format('d/m/Y'),
-                        'titulo_actividad' => $r->titulo_actividad,
+                        // BLOQUE 8: tipo_actividad reemplaza titulo_actividad
+                        'tipo_actividad' => $r->tipo_actividad,
                     ] : null;
                 })(),
             ],
             'reportes_recientes' => $tecnico->reportes->map(fn ($r) => [
                 'id' => $r->id,
                 'fecha' => $r->fecha?->format('d/m/Y'),
-                'titulo_actividad' => $r->titulo_actividad,
+                // BLOQUE 8: tipo_actividad reemplaza titulo_actividad
+                'tipo_actividad' => $r->tipo_actividad,
                 'estado_reporte' => $r->estado_reporte,
             ]),
         ]);

@@ -207,7 +207,9 @@ const toggleEstado = () => {
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Card title="Último reporte">
                     <div v-if="estadisticas.ultimo_reporte" class="space-y-2">
-                        <div class="font-medium text-slate-800">{{ estadisticas.ultimo_reporte.titulo_actividad }}</div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cvaup-primary/10 text-cvaup-primary border border-cvaup-primary/20">
+                            {{ estadisticas.ultimo_reporte.tipo_actividad || '—' }}
+                        </span>
                         <div class="text-sm text-slate-500">
                             <Icon name="calendar" :size="14" class="inline" />
                             {{ estadisticas.ultimo_reporte.fecha }}
@@ -239,7 +241,9 @@ const toggleEstado = () => {
                 <ul v-else class="divide-y divide-slate-100">
                     <li v-for="r in reportes_recientes" :key="r.id" class="py-3 flex items-center justify-between gap-3">
                         <div class="min-w-0">
-                            <div class="font-medium text-slate-800 truncate">{{ r.titulo_actividad }}</div>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-cvaup-primary/10 text-cvaup-primary border border-cvaup-primary/20">
+                                {{ r.tipo_actividad || '—' }}
+                            </span>
                             <div class="text-xs text-slate-500">{{ r.fecha }}</div>
                         </div>
                         <Badge :type="r.estado_reporte" size="sm" />

@@ -204,7 +204,10 @@ class ExportarController extends Controller
             'borradores' => $reportes->where('estado_reporte', 'borrador')->count(),
             'total_personas_atendidas' => (int) $reportes->sum('cantidad_personas_atendidas'),
             'total_personas_a_beneficiar' => (int) $reportes->sum('cantidad_personas_a_beneficiar'),
-            'total_participantes_acreditados' => (int) $reportes->sum('participantes_acreditados'),
+            // BLOQUE 8: total_participantes_acreditados eliminado del array de estadísticas.
+            // El campo `participantes_acreditados` se removió del modelo Reporte;
+            // la métrica equivalente para reportes ya completados es `total_personas_atendidas`
+            // (ya calculado arriba a partir de `cantidad_personas_atendidas`).
             'tecnicos_distintos' => $reportes->pluck('tecnico_id')->filter()->unique()->count(),
             'municipios_distintos' => $reportes->pluck('municipio_id')->filter()->unique()->count(),
         ];

