@@ -405,12 +405,7 @@
             </thead>
             <tbody>
                 @foreach ($reportes as $r)
-                    @php
-                        $estadoClase = "badge-{$r->estado_reporte}";
-                        // BLOQUE 5: cuántos territorios adicionales atendió en esta jornada
-                        $extraComunas = $r->relationLoaded('comunasAdicionales') ? $r->comunasAdicionales->count() : 0;
-                        $extraCCs = $r->relationLoaded('consejosComunalesAdicionales') ? $r->consejosComunalesAdicionales->count() : 0;
-                    @endphp
+                    @php $estadoClase = "badge-{$r->estado_reporte}"; @endphp
                     <tr>
                         <td>{{ $r->fecha?->format('d/m/Y') ?? '—' }}</td>
                         <td>
@@ -423,20 +418,7 @@
                             @endif
                         </td>
                         <td>{{ $r->municipio?->nombre ?? '—' }}</td>
-                        <td>
-                            {{ $r->consejoComunal?->nombre ?? '—' }}
-                            {{-- BLOQUE 5: indicador "+N" si hay comunas/CCs adicionales atendidos --}}
-                            @if ($extraComunas > 0 || $extraCCs > 0)
-                                @php
-                                    $partes = [];
-                                    if ($extraCCs > 0)     $partes[] = '+' . $extraCCs . ' CC' . ($extraCCs > 1 ? 's' : '');
-                                    if ($extraComunas > 0) $partes[] = '+' . $extraComunas . ' comuna' . ($extraComunas > 1 ? 's' : '');
-                                @endphp
-                                <div style="font-size: 7pt; color: #2E7D32; margin-top: 2px;">
-                                    {{ implode(' · ', $partes) }}
-                                </div>
-                            @endif
-                        </td>
+                        <td>{{ $r->consejoComunal?->nombre ?? '—' }}</td>
                         <td>{{ $r->tipo_actividad ?? '—' }}</td>
                         <td class="num">{{ $r->cantidad_personas_atendidas ?? '—' }}</td>
                         <td class="num">{{ $r->fotos->count() }}</td>

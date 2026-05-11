@@ -284,29 +284,7 @@
             @endif
         </div>
 
-        {{-- BLOQUE 5: comunas adicionales atendidas en la misma jornada --}}
-        @if ($reporte->comunasAdicionales->count() > 0)
-        <div class="ubicacion" style="margin-top: 6px; background: #FAFAFA;">
-            <strong>Otras comunas atendidas ({{ $reporte->comunasAdicionales->count() }}):</strong>
-            <span style="color: #475569;">
-                @foreach ($reporte->comunasAdicionales as $c)
-                    {{ $c->nombre }}<span style="color: #94A3B8;"> — {{ $c->parroquia?->municipio?->nombre ?? '?' }}</span>{{ !$loop->last ? ', ' : '' }}
-                @endforeach
-            </span>
-        </div>
-        @endif
-
-        {{-- BLOQUE 5: consejos comunales adicionales atendidos --}}
-        @if ($reporte->consejosComunalesAdicionales->count() > 0)
-        <div class="ubicacion" style="margin-top: 6px; background: #FAFAFA;">
-            <strong>Otros consejos comunales atendidos ({{ $reporte->consejosComunalesAdicionales->count() }}):</strong>
-            <span style="color: #475569;">
-                @foreach ($reporte->consejosComunalesAdicionales as $cc)
-                    {{ $cc->nombre }}<span style="color: #94A3B8;"> — {{ $cc->comuna?->nombre ?? '?' }}</span>{{ !$loop->last ? ', ' : '' }}
-                @endforeach
-            </span>
-        </div>
-        @endif
+        {{-- BLOQUE 9: las cantidades totales de comunas y CCs se muestran en la sección Métricas. --}}
     </div>
 
     {{-- Métricas --}}

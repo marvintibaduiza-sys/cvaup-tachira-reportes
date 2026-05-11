@@ -48,11 +48,10 @@ class ReportesExport implements
 {
     private const HEADER_ROW = 4;       // fila donde van los headers de columna
     private const FIRST_DATA_ROW = 5;   // primera fila de datos
-    // BLOQUE 8: 22 columnas (A=1..V=22). Antes eran 32.
-    // Eliminadas: titulo_actividad → renombrado, fecha_ejecucion, nombre_cientifico_rubro,
-    // ponencia_responsable, material_apoyo, organizado_por, aval_de, certificacion,
-    // participantes_acreditados, alcance_grupo, resultado, resumen_tematico (renombrado).
-    private const LAST_COLUMN = 'V';
+    // BLOQUE 9: 20 columnas (A=1..T=20). Antes eran 22.
+    // Quitadas en BLOQUE 9: "Otras comunas atendidas" y "Otros consejos comunales atendidos"
+    // (eran columnas concatenadas desde los pivotes que se eliminaron).
+    private const LAST_COLUMN = 'T';
 
     public function __construct(private readonly Collection $reportes)
     {
@@ -74,22 +73,6 @@ class ReportesExport implements
                 ? implode(', ', $r->tecnico->especialidades)
                 : '';
 
-            $otrasComunas = $r->comunasAdicionales
-                ?->map(fn ($c) => \sprintf(
-                    '%s (%s)',
-                    $c->nombre,
-                    $c->parroquia?->municipio?->nombre ?? '?'
-                ))
-                ->implode(', ') ?? '';
-
-            $otrosCCs = $r->consejosComunalesAdicionales
-                ?->map(fn ($cc) => \sprintf(
-                    '%s (%s)',
-                    $cc->nombre,
-                    $cc->comuna?->nombre ?? '?'
-                ))
-                ->implode(', ') ?? '';
-
             return [
                 $r->id,
                 $r->fecha?->format('Y-m-d'),
@@ -104,11 +87,9 @@ class ReportesExport implements
                 E::clean($r->parroquia?->nombre),
                 E::clean($r->comuna?->nombre),
                 E::clean($r->consejoComunal?->nombre),
-                // BLOQUE 5: adicionales
+                // BLOQUE 9: cantidades manuales (totales, incluyen la principal)
                 $r->cantidad_comunas_atendidas,
-                E::clean($otrasComunas),
                 $r->cantidad_consejos_comunales_atendidos,
-                E::clean($otrosCCs),
                 E::clean($r->lugar),
                 // Personas
                 $r->cantidad_personas_atendidas,
@@ -131,9 +112,8 @@ class ReportesExport implements
             'Técnico', 'Tipo doc.', 'Cédula', 'Especialidades',
             // Ubicación principal
             'Municipio', 'Parroquia', 'Comuna', 'Consejo Comunal',
-            // BLOQUE 5: cantidades + adicionales
-            'Total comunas atendidas', 'Otras comunas atendidas',
-            'Total consejos atendidos', 'Otros consejos comunales atendidos',
+            // BLOQUE 9: cantidades manuales totales
+            'Total comunas atendidas', 'Total consejos comunales atendidos',
             'Lugar',
             // Personas
             'Personas atendidas', 'Personas a beneficiar',
