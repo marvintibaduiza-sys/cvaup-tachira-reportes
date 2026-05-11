@@ -8,7 +8,7 @@ const props = defineProps({
     reporte: { type: Object, required: true },
     tecnicos: { type: Array, default: () => [] },
     municipios: { type: Array, default: () => [] },
-    tiposActividad: { type: Array, default: () => [] },
+    tipos_actividad: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -50,7 +50,7 @@ const submit = () => {
                     :form="form"
                     :tecnicos="tecnicos"
                     :municipios="municipios"
-                    :tipos-actividad="tiposActividad"
+                    :tipos-actividad="tipos_actividad"
                     :fotos-existentes="reporte.fotos_existentes"
                     :is-edit="true"
                     :cancel-href="`/reportes/${reporte.id}`"

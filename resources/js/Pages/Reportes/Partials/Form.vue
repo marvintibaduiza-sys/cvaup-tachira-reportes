@@ -17,7 +17,7 @@ const props = defineProps({
     form: { type: Object, required: true },
     tecnicos: { type: Array, default: () => [] },
     municipios: { type: Array, default: () => [] },
-    tiposActividad: { type: Array, default: () => [] }, // BLOQUE 8: ['Capacitación', 'Asesoría técnica', ...]
+    tipos_actividad: { type: Array, default: () => [] }, // BLOQUE 8: ['Capacitación', 'Asesoría técnica', ...]
     fotosExistentes: { type: Array, default: () => [] }, // solo en edit
     isEdit: { type: Boolean, default: false },
     cancelHref: { type: String, default: '/reportes' },
@@ -163,7 +163,7 @@ const submitForm = (esBorrador = false) => {
                 <FormField label="Tipo de actividad" required :error="form.errors.tipo_actividad">
                     <select v-model="form.tipo_actividad" :class="inputClass">
                         <option value="" disabled>— Selecciona el tipo —</option>
-                        <option v-for="t in tiposActividad" :key="t" :value="t">
+                        <option v-for="t in tipos_actividad" :key="t" :value="t">
                             {{ t }}
                         </option>
                     </select>

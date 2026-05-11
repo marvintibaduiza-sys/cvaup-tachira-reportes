@@ -7,7 +7,7 @@ import { Head, useForm } from '@inertiajs/vue3';
 defineProps({
     tecnicos: { type: Array, default: () => [] },
     municipios: { type: Array, default: () => [] },
-    tiposActividad: { type: Array, default: () => [] },
+    tipos_actividad: { type: Array, default: () => [] },
 });
 
 const today = new Date().toISOString().split('T')[0];
@@ -50,7 +50,7 @@ const submit = () => {
                     :form="form"
                     :tecnicos="tecnicos"
                     :municipios="municipios"
-                    :tipos-actividad="tiposActividad"
+                    :tipos-actividad="tipos_actividad"
                     @submit="submit"
                 />
             </Card>
