@@ -132,6 +132,73 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Perfil (Breeze)
     Route::get('/perfil', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/perfil', [ProfileController::class, 'update'])->name('profile.update');
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Endpoint de setup en servidor: ejecuta migraciones pendientes desde el navegador.
+    //
+    // SEGURIDAD:
+    //   - Requiere usuario autenticado (middleware 'auth')
+    //   - Solo el email definido en ADMIN_EMAIL puede ejecutarlo
+    //   - Requiere token = sha256(APP_KEY).substr(0,32) — el dueño del servidor lo conoce
+    //     porque solo él tiene acceso al .env
+    //   - Log de toda la operación en storage/logs/laravel.log
+    //
+    // USO:
+    //   1. Genera tu token localmente:
+    //      php artisan tinker --execute="echo substr(hash('sha256', config('app.key')), 0, 32);"
+    //   2. Logueate en producción como admin
+    //   3. Visita: https://servidor.com/admin/db-setup/{tu-token-de-32-chars}
+    //   4. Verás el output de migrate + optimize:clear
+    //
+    // Tras usarlo en producción, conviene eliminarlo. No es para uso recurrente.
+    // ──────────────────────────────────────────────────────────────────────
+    Route::get('/admin/db-setup/{token}', function (string $token) {
+        // 1) Solo el admin definido en .env
+        if (auth()->user()->email !== env('ADMIN_EMAIL')) {
+            abort(403, 'No autorizado. Solo el admin del sistema puede ejecutar este endpoint.');
+        }
+
+        // 2) Token = hash del APP_KEY (32 chars). Solo el dueño del servidor lo conoce.
+        $tokenEsperado = substr(hash('sha256', config('app.key')), 0, 32);
+        if (!hash_equals($tokenEsperado, $token)) {
+            \Log::warning('admin/db-setup intento con token inválido', [
+                'user_id' => auth()->id(),
+                'ip' => request()->ip(),
+            ]);
+            abort(403, 'Token inválido.');
+        }
+
+        // 3) Ejecutar migrate y optimize:clear
+        $outputMigrate = new \Symfony\Component\Console\Output\BufferedOutput();
+        $exitMigrate = \Artisan::call('migrate', ['--force' => true], $outputMigrate);
+
+        $outputClear = new \Symfony\Component\Console\Output\BufferedOutput();
+        \Artisan::call('optimize:clear', [], $outputClear);
+
+        $resultado = "[migrate exit code: {$exitMigrate}]\n\n"
+            . "=== MIGRATE OUTPUT ===\n" . $outputMigrate->fetch()
+            . "\n=== OPTIMIZE:CLEAR OUTPUT ===\n" . $outputClear->fetch();
+
+        \Log::info('admin/db-setup ejecutado', [
+            'user_id' => auth()->id(),
+            'ip' => request()->ip(),
+            'exit_code' => $exitMigrate,
+        ]);
+
+        return response(
+            "<!doctype html><html><head><meta charset='utf-8'><title>DB Setup — CVAUP</title>"
+            . "<style>body{font-family:monospace;padding:24px;background:#0f172a;color:#e2e8f0}"
+            . "h1{color:#22c55e}.ok{color:#22c55e}.err{color:#ef4444}</style></head><body>"
+            . "<h1>✓ DB Setup ejecutado</h1>"
+            . "<p class='" . ($exitMigrate === 0 ? 'ok' : 'err') . "'>"
+            . "Exit code: {$exitMigrate} (" . ($exitMigrate === 0 ? 'OK' : 'ERROR') . ")</p>"
+            . "<pre>" . htmlspecialchars($resultado) . "</pre>"
+            . "<p><a href='/dashboard' style='color:#22c55e'>← Volver al dashboard</a></p>"
+            . "</body></html>",
+            200,
+            ['Content-Type' => 'text/html; charset=utf-8']
+        );
+    })->name('admin.db-setup');
 });
 
 require __DIR__.'/auth.php';
