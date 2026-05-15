@@ -330,28 +330,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $reportesBorrados = 0;
 
         try {
-            \DB::transaction(function () use (&$reportesBorrados) {
-                // Quitar verificación de FK para poder truncar en orden libre
-                \DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+            // NOTA: TRUNCATE en MySQL cierra transacciones implícitamente porque es DDL.
+            // Por eso NO podemos envolver todo en DB::transaction — chocaría.
+            // En su lugar ejecutamos secuencialmente y confiamos en que cada operación
+            // sea atómica per se. Si falla a mitad de camino, el estado queda raro
+            // pero el endpoint se puede re-ejecutar de forma idempotente.
 
-                // 1) Borrar fotos primero (FK desde reportes)
-                \DB::table('fotos_reporte')->delete();
+            // Quitar verificación de FK para poder truncar en orden libre
+            \DB::statement('SET FOREIGN_KEY_CHECKS = 0');
 
-                // 2) Borrar reportes (incluyendo soft-deleted)
-                $reportesBorrados = \DB::table('reportes')->delete();
+            // 1) Borrar fotos primero (FK desde reportes)
+            \DB::table('fotos_reporte')->delete();
 
-                // 3) Limpiar pivote técnico-municipio (las zonas asignadas se pierden)
-                \DB::table('tecnico_municipio')->truncate();
+            // 2) Borrar reportes (incluyendo soft-deleted)
+            $reportesBorrados = \DB::table('reportes')->delete();
 
-                // 4) Truncar jerarquía territorial completa (hijos → padres)
-                \DB::table('consejos_comunales')->truncate();
-                \DB::table('comunas')->truncate();
-                \DB::table('parroquias')->truncate();
-                \DB::table('municipios')->truncate();
-                \DB::table('estados')->truncate();
+            // 3) Limpiar pivote técnico-municipio (las zonas asignadas se pierden)
+            \DB::table('tecnico_municipio')->truncate();
 
-                \DB::statement('SET FOREIGN_KEY_CHECKS = 1');
-            });
+            // 4) Truncar jerarquía territorial completa (hijos → padres)
+            \DB::table('consejos_comunales')->truncate();
+            \DB::table('comunas')->truncate();
+            \DB::table('parroquias')->truncate();
+            \DB::table('municipios')->truncate();
+            \DB::table('estados')->truncate();
+
+            \DB::statement('SET FOREIGN_KEY_CHECKS = 1');
 
             // 5) Re-importar desde el Excel del repo
             $importer = app(\App\Services\UbicacionesImporter::class);
@@ -364,6 +368,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ]);
 
         } catch (\Throwable $e) {
+            // Asegurar restauración del flag de FK aunque haya error
+            try { \DB::statement('SET FOREIGN_KEY_CHECKS = 1'); } catch (\Throwable $ignored) {}
+
             $errores[] = $e->getMessage();
             \Log::error('admin/reset-ubicaciones FALLÓ', [
                 'user_id' => auth()->id(),
