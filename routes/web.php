@@ -278,6 +278,144 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ['Content-Type' => 'text/html; charset=utf-8']
         );
     })->name('admin.deploy');
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Endpoint de reset completo de ubicaciones desde el navegador.
+    //
+    // QUÉ HACE (en orden, dentro de una transacción):
+    //   1. DELETE fotos_reporte (FK desde reportes)
+    //   2. DELETE reportes
+    //   3. TRUNCATE tecnico_municipio (zonas asignadas se pierden)
+    //   4. TRUNCATE consejos_comunales → comunas → parroquias → municipios → estados
+    //   5. Reimporta TODO desde docs/CVAUP_TACHIRA.xlsx (debe estar en el repo)
+    //
+    // CUÁNDO USAR: cuando los datos territoriales en BD están mal y quieres
+    // resetearlos a la verdad del Excel del repo. Útil cuando se actualiza
+    // el Excel del repo y se quiere propagar el cambio a producción.
+    //
+    // ⚠️ DESTRUCTIVO: borra TODOS los reportes, ubicaciones y zonas asignadas.
+    // Los técnicos y el admin se preservan.
+    //
+    // SEGURIDAD: solo admin (verificado por ADMIN_EMAIL del .env).
+    //
+    // USO:
+    //   https://servidor.com/admin/reset-ubicaciones
+    // ──────────────────────────────────────────────────────────────────────
+    Route::get('/admin/reset-ubicaciones', function () {
+        if (auth()->user()->email !== env('ADMIN_EMAIL')) {
+            \Log::warning('admin/reset-ubicaciones intento de no-admin', [
+                'user_id' => auth()->id(),
+                'email' => auth()->user()->email,
+                'ip' => request()->ip(),
+            ]);
+            abort(403, 'No autorizado.');
+        }
+
+        $excelPath = base_path('docs/CVAUP_TACHIRA.xlsx');
+
+        if (!file_exists($excelPath)) {
+            return response(
+                "<!doctype html><html><head><meta charset='utf-8'><style>body{font-family:monospace;padding:24px;background:#7f1d1d;color:#fff}</style></head><body>"
+                . "<h1>✗ Excel no encontrado</h1>"
+                . "<p>No existe el archivo <code>docs/CVAUP_TACHIRA.xlsx</code> en el servidor.</p>"
+                . "<p>Asegúrate de que esté en el repo y haz \"Update from Remote\" en cPanel antes de ejecutar este endpoint.</p>"
+                . "</body></html>",
+                500,
+                ['Content-Type' => 'text/html; charset=utf-8']
+            );
+        }
+
+        $errores = [];
+        $stats = null;
+        $reportesBorrados = 0;
+
+        try {
+            \DB::transaction(function () use (&$reportesBorrados) {
+                // Quitar verificación de FK para poder truncar en orden libre
+                \DB::statement('SET FOREIGN_KEY_CHECKS = 0');
+
+                // 1) Borrar fotos primero (FK desde reportes)
+                \DB::table('fotos_reporte')->delete();
+
+                // 2) Borrar reportes (incluyendo soft-deleted)
+                $reportesBorrados = \DB::table('reportes')->delete();
+
+                // 3) Limpiar pivote técnico-municipio (las zonas asignadas se pierden)
+                \DB::table('tecnico_municipio')->truncate();
+
+                // 4) Truncar jerarquía territorial completa (hijos → padres)
+                \DB::table('consejos_comunales')->truncate();
+                \DB::table('comunas')->truncate();
+                \DB::table('parroquias')->truncate();
+                \DB::table('municipios')->truncate();
+                \DB::table('estados')->truncate();
+
+                \DB::statement('SET FOREIGN_KEY_CHECKS = 1');
+            });
+
+            // 5) Re-importar desde el Excel del repo
+            $importer = app(\App\Services\UbicacionesImporter::class);
+            $stats = $importer->import($excelPath, dryRun: false, onProgress: null);
+
+            \Log::info('admin/reset-ubicaciones ejecutado OK', [
+                'user_id' => auth()->id(),
+                'reportes_borrados' => $reportesBorrados,
+                'stats' => $stats,
+            ]);
+
+        } catch (\Throwable $e) {
+            $errores[] = $e->getMessage();
+            \Log::error('admin/reset-ubicaciones FALLÓ', [
+                'user_id' => auth()->id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
+
+        $ok = empty($errores) && $stats !== null;
+        $bg = $ok ? '#0f172a' : '#7f1d1d';
+        $titleColor = $ok ? '#22c55e' : '#fca5a5';
+        $titleText = $ok ? '✓ Ubicaciones reseteadas e importadas' : '✗ Reset falló';
+
+        $html = "<!doctype html><html><head><meta charset='utf-8'><title>Reset Ubicaciones — CVAUP</title>"
+            . "<style>body{font-family:monospace;padding:24px;background:{$bg};color:#e2e8f0;line-height:1.6;max-width:900px;margin:0 auto}"
+            . "h1{color:{$titleColor};margin-top:0}"
+            . "h2{color:#38bdf8;border-bottom:1px solid #334155;padding-bottom:4px;margin-top:24px}"
+            . "pre{background:#1e293b;border:1px solid #334155;border-radius:4px;padding:12px;overflow-x:auto;white-space:pre-wrap}"
+            . ".ok{color:#22c55e}.err{color:#ef4444}"
+            . ".warn{background:#7f1d1d;border:2px solid #ef4444;padding:12px;border-radius:4px;margin-top:24px}"
+            . "a{color:#22c55e}</style></head><body>"
+            . "<h1>" . htmlspecialchars($titleText) . "</h1>";
+
+        if ($ok && $stats) {
+            $html .= "<h2>📊 Resultado del reset</h2>"
+                . "<pre>"
+                . "Reportes borrados:       {$reportesBorrados}\n"
+                . "\n"
+                . "Importación desde Excel: " . htmlspecialchars(basename($excelPath)) . "\n"
+                . "  Estados creados:       " . $stats['creados']['estados'] . "\n"
+                . "  Municipios creados:    " . $stats['creados']['municipios'] . "\n"
+                . "  Parroquias creadas:    " . $stats['creados']['parroquias'] . "\n"
+                . "  Comunas creadas:       " . $stats['creados']['comunas'] . "\n"
+                . "  Consejos comunales:    " . $stats['creados']['consejos'] . "\n"
+                . "\n"
+                . "  Filas procesadas:      " . $stats['filas_procesadas'] . "\n"
+                . "  Filas vacías saltadas: " . $stats['filas_saltadas_vacias'] . "\n"
+                . "</pre>"
+                . "<div class='warn'><strong>⚠️ ZONAS DE TÉCNICOS BORRADAS:</strong> Las zonas asignadas a los técnicos se perdieron. Hay que reasignarlas manualmente desde <a href='/tecnicos'>/tecnicos</a> → Editar cada uno → marcar municipios.</div>";
+        } else {
+            $html .= "<h2 class='err'>Errores</h2><pre>";
+            foreach ($errores as $err) {
+                $html .= htmlspecialchars($err) . "\n";
+            }
+            $html .= "</pre>";
+        }
+
+        $html .= "<p><a href='/dashboard'>← Volver al dashboard</a> | <a href='/tecnicos'>→ Ir a Técnicos a reasignar zonas</a></p>"
+            . "</body></html>";
+
+        return response($html, $ok ? 200 : 500, ['Content-Type' => 'text/html; charset=utf-8']);
+    })->name('admin.reset-ubicaciones');
 });
 
 require __DIR__.'/auth.php';
