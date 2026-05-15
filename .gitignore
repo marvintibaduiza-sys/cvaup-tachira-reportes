@@ -96,5 +96,3 @@ Homestead.yaml
 # ─── Archivos legados del design package (peso considerable) ──────
 /_design_package
 
-# Script standalone de uso único — no debe estar en el repo público
-/public/migrate-once.php
