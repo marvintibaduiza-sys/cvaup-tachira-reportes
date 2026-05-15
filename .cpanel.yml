@@ -19,7 +19,7 @@
 deployment:
   tasks:
     # 1. Definir el path absoluto del proyecto en el servidor
-    - export DEPLOYPATH=/home/robertserra/public_html/cvaup-tachira-reportes
+    - export DEPLOYPATH=/home/robertse/public_html/cvaup-tachira-reportes
 
     # 2. Ir al directorio del proyecto
     - cd $DEPLOYPATH
