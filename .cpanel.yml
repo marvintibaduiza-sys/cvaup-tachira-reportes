@@ -1,0 +1,42 @@
+---
+# .cpanel.yml — Deployment automático para cPanel Git Version Control
+#
+# Cuando se haga push a GitHub y cPanel reciba el "Update from Remote" o el
+# webhook, este archivo se ejecuta automáticamente. Hace lo necesario para
+# que el servidor quede sincronizado con el último estado de main.
+#
+# IMPORTANTE: el DEPLOYPATH debe coincidir EXACTAMENTE con el "Repository Path"
+# que ves en cPanel > Git Version Control > tu repo > Basic Information.
+# Si tu path es distinto al de abajo, edita DEPLOYPATH y vuelve a pushear.
+#
+# Paths típicos en cPanel:
+#  - PHP:      /usr/local/bin/php   (default cPanel)
+#              /opt/cpanel/ea-php82/root/usr/bin/php  (versión específica)
+#  - composer: /usr/local/bin/composer
+#
+# Si alguno falla en el log de deploy, ajustar a la ruta correcta.
+
+deployment:
+  tasks:
+    # 1. Definir el path absoluto del proyecto en el servidor
+    - export DEPLOYPATH=/home/robertserra/public_html/cvaup-tachira-reportes
+
+    # 2. Ir al directorio del proyecto
+    - cd $DEPLOYPATH
+
+    # 3. Aplicar migraciones pendientes (--force evita el prompt en producción)
+    #    Si esto falla por "command not found", cambia a /usr/local/bin/php
+    - /usr/local/bin/php artisan migrate --force 2>&1
+
+    # 4. Limpiar caches de Laravel (route, view, config, etc.) para que el
+    #    código nuevo se aplique sin esperar a invalidación natural.
+    - /usr/local/bin/php artisan optimize:clear 2>&1
+
+    # 5. Re-compilar el autoload de Composer (no instala nuevas deps —
+    #    asume que no hay cambios en composer.json. Si los hay, hay que
+    #    correr 'composer install --no-dev' manualmente vía SSH una vez).
+    - /usr/local/bin/composer dump-autoload --optimize --no-dev 2>&1 || true
+
+    # 6. Asegurar permisos correctos sobre storage/ y bootstrap/cache/
+    #    (Laravel necesita escritura ahí).
+    - chmod -R 775 $DEPLOYPATH/storage $DEPLOYPATH/bootstrap/cache 2>&1 || true
