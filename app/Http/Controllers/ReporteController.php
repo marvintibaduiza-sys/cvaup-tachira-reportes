@@ -143,6 +143,18 @@ class ReporteController extends Controller
         );
 
         $reporte = DB::transaction(function () use ($data, $request, $esBorrador) {
+            // FIX BLOQUE 9: si existe un reporte SOFT-DELETED con mismo tecnico+fecha,
+            // hay que borrarlo físicamente PRIMERO. El constraint UNIQUE de MySQL
+            // (`unique_tecnico_fecha`) NO respeta soft deletes — si encuentra fila
+            // con esa combinación (aunque tenga deleted_at lleno), bloquea el INSERT.
+            // Como semánticamente el usuario está creando un reporte "nuevo" con esos
+            // mismos parámetros, el reporte borrado ya no aporta — lo eliminamos físicamente.
+            \App\Models\Reporte::withTrashed()
+                ->where('tecnico_id', $data['tecnico_id'])
+                ->whereDate('fecha', $data['fecha'])
+                ->whereNotNull('deleted_at')
+                ->forceDelete();
+
             $reporte = Reporte::create($data);
 
             if ($request->hasFile('fotos')) {
