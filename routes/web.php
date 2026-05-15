@@ -226,25 +226,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             abort(403, 'No autorizado. Solo el admin del sistema puede ejecutar deploy.');
         }
 
-        $proyectoPath = base_path();
+        // NOTA: este hosting bloquea exec() — no podemos hacer `git pull` desde PHP.
+        // El usuario debe hacer "Update from Remote" en cPanel para traer código nuevo.
+        // Este endpoint solo aplica migraciones pendientes y limpia caches —
+        // usando Artisan API (que sí está permitida).
 
-        // 3) git pull origin main
-        if (!\function_exists('exec')) {
-            return response('<h1>exec() no disponible</h1><p>Este hosting bloquea la ejecución de comandos. Usa el .cpanel.yml + "Deploy HEAD Commit" desde cPanel.</p>', 500);
-        }
-
-        $gitOutput = [];
-        $gitExitCode = 0;
-        exec("cd " . escapeshellarg($proyectoPath) . " && git pull origin main 2>&1", $gitOutput, $gitExitCode);
-
-        $gitOutputStr = implode("\n", $gitOutput);
-
-        // 4) php artisan migrate --force
+        // 1) php artisan migrate --force
         $bufferMigrate = new \Symfony\Component\Console\Output\BufferedOutput();
         $exitMigrate = \Artisan::call('migrate', ['--force' => true], $bufferMigrate);
         $outputMigrate = $bufferMigrate->fetch();
 
-        // 5) php artisan optimize:clear
+        // 2) php artisan optimize:clear
         $bufferClear = new \Symfony\Component\Console\Output\BufferedOutput();
         \Artisan::call('optimize:clear', [], $bufferClear);
         $outputClear = $bufferClear->fetch();
@@ -252,35 +244,34 @@ Route::middleware(['auth', 'verified'])->group(function () {
         \Log::info('admin/deploy ejecutado', [
             'user_id' => auth()->id(),
             'ip' => request()->ip(),
-            'git_exit' => $gitExitCode,
             'migrate_exit' => $exitMigrate,
         ]);
 
-        $okGit = $gitExitCode === 0;
         $okMigrate = $exitMigrate === 0;
-        $todoOk = $okGit && $okMigrate;
 
-        $bg = $todoOk ? '#0f172a' : '#7f1d1d';
-        $titleColor = $todoOk ? '#22c55e' : '#fca5a5';
-        $titleText = $todoOk ? '✓ Deploy completo' : '✗ Deploy falló';
+        $bg = $okMigrate ? '#0f172a' : '#7f1d1d';
+        $titleColor = $okMigrate ? '#22c55e' : '#fca5a5';
+        $titleText = $okMigrate ? '✓ Migraciones aplicadas' : '✗ Falló migrate';
 
         return response(
             "<!doctype html><html><head><meta charset='utf-8'><title>Deploy — CVAUP</title>"
-            . "<style>body{font-family:monospace;padding:24px;background:{$bg};color:#e2e8f0;line-height:1.5}"
+            . "<style>body{font-family:monospace;padding:24px;background:{$bg};color:#e2e8f0;line-height:1.5;max-width:900px;margin:0 auto}"
             . "h1{color:{$titleColor};margin-top:0}"
             . "h2{color:#38bdf8;border-bottom:1px solid #334155;padding-bottom:4px;margin-top:24px}"
             . "pre{background:#1e293b;border:1px solid #334155;border-radius:4px;padding:12px;overflow-x:auto;white-space:pre-wrap}"
             . ".ok{color:#22c55e}.err{color:#ef4444}"
+            . ".info{background:#1e3a8a;border:1px solid #3b82f6;padding:12px;border-radius:4px;margin-top:16px}"
             . "a{color:#22c55e}</style></head><body>"
             . "<h1>" . htmlspecialchars($titleText) . "</h1>"
-            . "<h2>1. git pull origin main</h2>"
-            . "<p class='" . ($okGit ? 'ok' : 'err') . "'>Exit code: {$gitExitCode} (" . ($okGit ? 'OK' : 'ERROR') . ")</p>"
-            . "<pre>" . htmlspecialchars($gitOutputStr ?: '(sin output)') . "</pre>"
-            . "<h2>2. php artisan migrate --force</h2>"
+            . "<h2>1. php artisan migrate --force</h2>"
             . "<p class='" . ($okMigrate ? 'ok' : 'err') . "'>Exit code: {$exitMigrate} (" . ($okMigrate ? 'OK' : 'ERROR') . ")</p>"
-            . "<pre>" . htmlspecialchars($outputMigrate ?: '(sin output)') . "</pre>"
-            . "<h2>3. php artisan optimize:clear</h2>"
+            . "<pre>" . htmlspecialchars($outputMigrate ?: '(sin migraciones pendientes)') . "</pre>"
+            . "<h2>2. php artisan optimize:clear</h2>"
             . "<pre>" . htmlspecialchars($outputClear ?: '(sin output)') . "</pre>"
+            . "<div class='info'>"
+            . "<strong>ℹ️ Si pusheaste código nuevo a GitHub:</strong> primero haz <strong>\"Update from Remote\"</strong> en cPanel para traer el código, "
+            . "y después vuelve a abrir esta URL para aplicar las nuevas migraciones. Este hosting bloquea exec() así que no podemos hacer git pull desde PHP."
+            . "</div>"
             . "<p><a href='/dashboard'>← Volver al dashboard</a></p>"
             . "</body></html>",
             200,
