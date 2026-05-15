@@ -206,28 +206,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
     //   2. php artisan migrate --force
     //   3. php artisan optimize:clear
     //
-    // SEGURIDAD: misma que /admin/db-setup (auth + admin email + token).
+    // SEGURIDAD: solo el admin (verificado por email == ADMIN_EMAIL) puede ejecutarlo.
+    // No requiere token — el sistema es mono-usuario, el email es la barrera suficiente.
     //
     // USO:
-    //   https://servidor.com/admin/deploy/{tu-token-de-32-chars}
+    //   https://servidor.com/admin/deploy
     //
     // NOTA: requiere que `exec()` esté habilitada en PHP. Algunos hostings
     // compartidos la bloquean. Si falla, usa el `.cpanel.yml` + "Deploy HEAD Commit".
     // ──────────────────────────────────────────────────────────────────────
-    Route::get('/admin/deploy/{token}', function (string $token) {
-        // 1) Solo admin
+    Route::get('/admin/deploy', function () {
+        // Solo admin (verificado por email del .env)
         if (auth()->user()->email !== env('ADMIN_EMAIL')) {
-            abort(403, 'No autorizado.');
-        }
-
-        // 2) Token
-        $tokenEsperado = substr(hash('sha256', config('app.key')), 0, 32);
-        if (!hash_equals($tokenEsperado, $token)) {
-            \Log::warning('admin/deploy intento con token inválido', [
+            \Log::warning('admin/deploy intento de no-admin', [
                 'user_id' => auth()->id(),
+                'email' => auth()->user()->email,
                 'ip' => request()->ip(),
             ]);
-            abort(403, 'Token inválido.');
+            abort(403, 'No autorizado. Solo el admin del sistema puede ejecutar deploy.');
         }
 
         $proyectoPath = base_path();
