@@ -199,6 +199,98 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ['Content-Type' => 'text/html; charset=utf-8']
         );
     })->name('admin.db-setup');
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Endpoint de deploy completo desde el navegador:
+    //   1. git pull origin main
+    //   2. php artisan migrate --force
+    //   3. php artisan optimize:clear
+    //
+    // SEGURIDAD: misma que /admin/db-setup (auth + admin email + token).
+    //
+    // USO:
+    //   https://servidor.com/admin/deploy/{tu-token-de-32-chars}
+    //
+    // NOTA: requiere que `exec()` esté habilitada en PHP. Algunos hostings
+    // compartidos la bloquean. Si falla, usa el `.cpanel.yml` + "Deploy HEAD Commit".
+    // ──────────────────────────────────────────────────────────────────────
+    Route::get('/admin/deploy/{token}', function (string $token) {
+        // 1) Solo admin
+        if (auth()->user()->email !== env('ADMIN_EMAIL')) {
+            abort(403, 'No autorizado.');
+        }
+
+        // 2) Token
+        $tokenEsperado = substr(hash('sha256', config('app.key')), 0, 32);
+        if (!hash_equals($tokenEsperado, $token)) {
+            \Log::warning('admin/deploy intento con token inválido', [
+                'user_id' => auth()->id(),
+                'ip' => request()->ip(),
+            ]);
+            abort(403, 'Token inválido.');
+        }
+
+        $proyectoPath = base_path();
+
+        // 3) git pull origin main
+        if (!\function_exists('exec')) {
+            return response('<h1>exec() no disponible</h1><p>Este hosting bloquea la ejecución de comandos. Usa el .cpanel.yml + "Deploy HEAD Commit" desde cPanel.</p>', 500);
+        }
+
+        $gitOutput = [];
+        $gitExitCode = 0;
+        exec("cd " . escapeshellarg($proyectoPath) . " && git pull origin main 2>&1", $gitOutput, $gitExitCode);
+
+        $gitOutputStr = implode("\n", $gitOutput);
+
+        // 4) php artisan migrate --force
+        $bufferMigrate = new \Symfony\Component\Console\Output\BufferedOutput();
+        $exitMigrate = \Artisan::call('migrate', ['--force' => true], $bufferMigrate);
+        $outputMigrate = $bufferMigrate->fetch();
+
+        // 5) php artisan optimize:clear
+        $bufferClear = new \Symfony\Component\Console\Output\BufferedOutput();
+        \Artisan::call('optimize:clear', [], $bufferClear);
+        $outputClear = $bufferClear->fetch();
+
+        \Log::info('admin/deploy ejecutado', [
+            'user_id' => auth()->id(),
+            'ip' => request()->ip(),
+            'git_exit' => $gitExitCode,
+            'migrate_exit' => $exitMigrate,
+        ]);
+
+        $okGit = $gitExitCode === 0;
+        $okMigrate = $exitMigrate === 0;
+        $todoOk = $okGit && $okMigrate;
+
+        $bg = $todoOk ? '#0f172a' : '#7f1d1d';
+        $titleColor = $todoOk ? '#22c55e' : '#fca5a5';
+        $titleText = $todoOk ? '✓ Deploy completo' : '✗ Deploy falló';
+
+        return response(
+            "<!doctype html><html><head><meta charset='utf-8'><title>Deploy — CVAUP</title>"
+            . "<style>body{font-family:monospace;padding:24px;background:{$bg};color:#e2e8f0;line-height:1.5}"
+            . "h1{color:{$titleColor};margin-top:0}"
+            . "h2{color:#38bdf8;border-bottom:1px solid #334155;padding-bottom:4px;margin-top:24px}"
+            . "pre{background:#1e293b;border:1px solid #334155;border-radius:4px;padding:12px;overflow-x:auto;white-space:pre-wrap}"
+            . ".ok{color:#22c55e}.err{color:#ef4444}"
+            . "a{color:#22c55e}</style></head><body>"
+            . "<h1>" . htmlspecialchars($titleText) . "</h1>"
+            . "<h2>1. git pull origin main</h2>"
+            . "<p class='" . ($okGit ? 'ok' : 'err') . "'>Exit code: {$gitExitCode} (" . ($okGit ? 'OK' : 'ERROR') . ")</p>"
+            . "<pre>" . htmlspecialchars($gitOutputStr ?: '(sin output)') . "</pre>"
+            . "<h2>2. php artisan migrate --force</h2>"
+            . "<p class='" . ($okMigrate ? 'ok' : 'err') . "'>Exit code: {$exitMigrate} (" . ($okMigrate ? 'OK' : 'ERROR') . ")</p>"
+            . "<pre>" . htmlspecialchars($outputMigrate ?: '(sin output)') . "</pre>"
+            . "<h2>3. php artisan optimize:clear</h2>"
+            . "<pre>" . htmlspecialchars($outputClear ?: '(sin output)') . "</pre>"
+            . "<p><a href='/dashboard'>← Volver al dashboard</a></p>"
+            . "</body></html>",
+            200,
+            ['Content-Type' => 'text/html; charset=utf-8']
+        );
+    })->name('admin.deploy');
 });
 
 require __DIR__.'/auth.php';
